@@ -268,16 +268,6 @@ export class WebPlot {
     getImageDataHeight() { return this.dataHeight; }
 
     /**
-     *
-     * @return {boolean}
-     */
-    isBlankImage() {
-        if (this.isThreeColor()) return false;
-        var req= this.plotState.getWebPlotRequest();
-        return (req && req.getRequestType()===RequestType.BLANK);
-    }
-
-    /**
      * This method will return the width of the image in the world coordinate
      * system (probably degrees on the sky).
      * @return {number} the width of the image data in world coord system.
@@ -443,16 +433,21 @@ export class WebPlot {
         var projection= makeProjection(wpInit.projection);
         var plotState= PlotState.makePlotStateWithJson(wpInit.plotState);
         var zf= plotState.getZoomLevel();
+
+        var csys= CoordinateSys.parse(wpInit.imageCoordSys);
+
+
         var webPlot= {
             plotId,
             plotImageId     : plotId+'---NEEDS___INIT',
             serverImages    : wpInit.initImages,
-            imageCoordSys   : wpInit.imageCoordSys,
+            imageCoordSys   : csys,
             plotState,
             projection,
             dataWidth       : wpInit.dataWidth,
             dataHeight      : wpInit.dataHeight,
             imageScaleFactor: wpInit.imageScaleFactor,
+            title : '',
             plotDesc        : wpInit.desc,
             dataDesc        : wpInit.dataDesc,
             webFitsData     : wpInit.fitsData,
@@ -462,7 +457,7 @@ export class WebPlot {
             percentOpaque   : 1.0,
             alive    : true,
             attributes: {},
-            viewPort: WebPlot.makeViewPort(0,0,42,42),
+            viewPort: WebPlot.makeViewPort(0,0,0,0),
             //=== End Mutable =====================
             asOverlay
         };
@@ -480,16 +475,6 @@ export class WebPlot {
         return Object.assign({},wpData,{viewPort});
     }
 
-    /**
-     *
-     * @param wpData
-     * @param {number} zoomFactor
-     * @return {*}
-     */
-    static setZoomFactor(wpData,zoomFactor) {
-        var screenSize= {width:wpData.dataWidth*zoomFactor, height:wpData.dataHeight*zoomFactor};
-        return Object.assign({},wpData,{zoomFactor,screenSize});
-    }
 
     /**
      *
@@ -515,10 +500,10 @@ export class WebPlot {
      * @param attValue
      * @return {*} new version of webplotdata
      */
-    static addWPAttribute(wpData,attName,attValue) {
-        var att= Object.assign({},wpData.attributes, {[attName]:attValue});
-        return Object.assign({},wpData,att);
-    }
+    //static addWPAttribute(wpData,attName,attValue) {
+    //    var att= Object.assign({},wpData.attributes, {[attName]:attValue});
+    //    return Object.assign({},wpData,{attributes:att});
+    //}
 
     /**
      *
@@ -540,6 +525,29 @@ export class WebPlot {
     static makeViewPort(x,y,width,height) { return  {dim:{width,height},x,y}; }
 
 };
+
+
+/**
+ *
+ * @return {boolean}
+ */
+export function isBlankImage(plot) {
+    if (plot.plotState.isThreeColor()) return false;
+    var req= plot.plotState.getWebPlotRequest();
+    return (req && req.getRequestType()===RequestType.BLANK);
+}
+
+/**
+ *
+ * @param wpData
+ * @param {number} zoomFactor
+ * @return {*}
+ */
+export function clonePlotWithZoom(wpData,zoomFactor) {
+    var screenSize= {width:wpData.dataWidth*zoomFactor, height:wpData.dataHeight*zoomFactor};
+    return Object.assign({},wpData,{zoomFactor,screenSize});
+}
+
 
 
 export default WebPlot;

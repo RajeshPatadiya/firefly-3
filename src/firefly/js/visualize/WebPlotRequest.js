@@ -10,21 +10,37 @@ import ZoomType from './ZoomType.js';
 import Enum from 'enum';
 import CoordinateSys from './CoordSys.js';
 import Point, {parseImagePt} from './Point.js';
-import Resolver, {parseResolver} from '../astro/net/Resolver.js';
+import {parseResolver} from '../astro/net/Resolver.js';
+import join from 'underscore.string/join';
 import RangeValues from './RangeValues.js';
+//import ActiveTarget from '../drawingLayers/ActiveTarget.js';
 
 
 export const ServiceType= new Enum(['IRIS', 'ISSA', 'DSS', 'SDSS', 'TWOMASS', 'MSX', 'DSS_OR_IRIS', 'WISE', 'NONE']);
-export const TitleOptions= new Enum(['NONE',  // use what it in the title
-                            'PLOT_DESC', // use the plot description key
-                            'FILE_NAME', // use the file name or analyze the URL and make a title from that
-                            'HEADER_KEY', // use the header value
-                            'PLOT_DESC_PLUS', // ??
-                            'SERVICE_OBS_DATE'
-                           ]);
+export const TitleOptions= new Enum([
+    'NONE',  // use what it in the title
+    'PLOT_DESC', // use the plot description key
+    'FILE_NAME', // use the file name or analyze the URL and make a title from that
+    'HEADER_KEY', // use the header value
+    'PLOT_DESC_PLUS', // ??
+    'SERVICE_OBS_DATE'
+]);
+
+export const AnnotationOps= new Enum([
+    'INLINE',    //default inline title full title and tools
+    'INLINE_BRIEF',  // inline brief title, no tools
+    'INLINE_BRIEF_TOOLS', // brief title w/ tools
+    'TITLE_BAR', // title full title and tools
+    'TITLE_BAR_BRIEF', // title bar brief title, no tools
+    'TITLE_BAR_BRIEF_TOOLS', // title bar brief with w/ tools
+    'TITLE_BAR_BRIEF_CHECK_BOX' // title bar brief title with a check box (used in planck)
+]);
+
+
+
 export const ExpandedTitleOptions= new Enum([ 'REPLACE',// use expanded title when expanded
                                      'PREFIX',// use expanded title as prefix to title
-                                     'SUFFIX'// use expanded title as sufix to title
+                                     'SUFFIX'// use expanded title as suffix to title
                                    ]);
 export const GridOnStatus= new Enum(['FALSE','TRUE','TRUE_LABELS_FALSE']);
 
@@ -95,21 +111,12 @@ const C= {
     PLOT_TO_DIV : 'PlotToDiv',
     PREFERENCE_COLOR_KEY : 'PreferenceColorKey',
     PREFERENCE_ZOOM_KEY : 'PreferenceZoomKey',
-    SHOW_TITLE_AREA : 'ShowTitleArea',
     ROTATE_NORTH_SUGGESTION : 'RotateNorthSuggestion',
     SAVE_CORNERS : 'SaveCornersAfterPlot',
-    SHOW_SCROLL_BARS : 'showScrollBars',
-    EXPANDED_TITLE : 'ExpandedTitle',
+    SHOW_SCROLL_BARS : 'showScrollBars',  // todo deprecate
     ALLOW_IMAGE_SELECTION : 'AllowImageSelection',
     HAS_NEW_PLOT_CONTAINER : 'HasNewPlotContainer',
-    ADVERTISE : 'Advertise',
-    HIDE_TITLE_DETAIL : 'HideTitleDetail',
     GRID_ON : 'GridOn',
-    TITLE_OPTIONS : 'TitleOptions',
-    EXPANDED_TITLE_OPTIONS : 'ExpandedTitleOptions',
-    POST_TITLE: 'PostTitle',
-    PRE_TITLE: 'PreTitle',
-    TITLE_FILENAME_MODE_PFX : 'TitleFilenameModePfx',
     OVERLAY_POSITION : 'OverlayPosition',
     MINIMAL_READOUT: 'MinimalReadout',
     PLOT_GROUP_ID: 'plotGroupId',
@@ -117,7 +124,20 @@ const C= {
     DRAWING_SUB_GROUP_ID: 'DrawingSubgroupID',
     GRID_ID : 'GRID_ID',
     DOWNLOAD_FILENAME_ROOT : 'DownloadFileNameRoot',
-    PLOT_ID : 'PlotID'
+    PLOT_ID : 'PlotID',
+    OVERLAY_IDS: 'PredefinedOverlayIds',
+
+
+
+    //SHOW_TITLE_AREA : 'ShowTitleArea',  // deprecate
+    //HIDE_TITLE_DETAIL : 'HideTitleDetail',// deprecate
+    //TITLE_FILENAME_MODE_PFX : 'TitleFilenameModePfx', // deprecate
+    ANNOTATION_OPS : 'AnnotationOps',
+    TITLE_OPTIONS : 'TitleOptions',
+    EXPANDED_TITLE_OPTIONS : 'ExpandedTitleOptions',
+    EXPANDED_TITLE : 'ExpandedTitle',
+    POST_TITLE: 'PostTitle',
+    PRE_TITLE: 'PreTitle'
 
 };
 
@@ -138,27 +158,28 @@ const allKeys =
 
          C.UNIQUE_KEY,
          C.PLOT_TO_DIV, C.PREFERENCE_COLOR_KEY, C.PREFERENCE_ZOOM_KEY,
-         C.SHOW_TITLE_AREA, C.ROTATE_NORTH_SUGGESTION, C.SAVE_CORNERS,
-         C.SHOW_SCROLL_BARS, C.EXPANDED_TITLE, C.PLOT_DESC_APPEND, C.HIDE_TITLE_DETAIL,
+         C.ROTATE_NORTH_SUGGESTION, C.SAVE_CORNERS,
+         C.SHOW_SCROLL_BARS, C.EXPANDED_TITLE, C.PLOT_DESC_APPEND,
          C.ALLOW_IMAGE_SELECTION, C.HAS_NEW_PLOT_CONTAINER,
          C.GRID_ON, C.TITLE_OPTIONS, C.EXPANDED_TITLE_OPTIONS,
          C.POST_TITLE, C.PRE_TITLE, C.OVERLAY_POSITION,
-         C.TITLE_FILENAME_MODE_PFX, C.MINIMAL_READOUT, C.PLOT_GROUP_ID, C.GROUP_LOCKED, C.DRAWING_SUB_GROUP_ID, C.GRID_ID,
+         C.MINIMAL_READOUT, C.PLOT_GROUP_ID, C.GROUP_LOCKED, C.DRAWING_SUB_GROUP_ID, C.GRID_ID,
          C.DOWNLOAD_FILENAME_ROOT, C.PLOT_ID
         ];
 
 const clientSideKeys =
         [C.UNIQUE_KEY,
          C.PLOT_TO_DIV, C.PREFERENCE_COLOR_KEY, C.PREFERENCE_ZOOM_KEY,
-         C.SHOW_TITLE_AREA, C.ROTATE_NORTH_SUGGESTION, C.SAVE_CORNERS,
+         C.ROTATE_NORTH_SUGGESTION, C.SAVE_CORNERS,
          C.SHOW_SCROLL_BARS, C.EXPANDED_TITLE,
          C.ALLOW_IMAGE_SELECTION, C.HAS_NEW_PLOT_CONTAINER,
-         C.ADVERTISE, C.HIDE_TITLE_DETAIL, C.GRID_ON,
+         C.GRID_ON,
          C.TITLE_OPTIONS, C.EXPANDED_TITLE_OPTIONS,
          C.POST_TITLE, C.PRE_TITLE, C.OVERLAY_POSITION,
-         C.TITLE_FILENAME_MODE_PFX, C.MINIMAL_READOUT,
+         C.MINIMAL_READOUT,
          C.PLOT_GROUP_ID, C.DRAWING_SUB_GROUP_ID, C.GRID_ID,
          C.DOWNLOAD_FILENAME_ROOT, C.PLOT_ID, C.GROUP_LOCKED,
+         C.OVERLAY_IDS
         ];
 
 const ignoreForEquals = [C.PROGRESS_KEY, C.ZOOM_TO_WIDTH, C.ZOOM_TO_HEIGHT,
@@ -170,18 +191,9 @@ const DEFAULT_PIPELINE_ORDER= Order.ROTATE.key+';'+
                               Order.POST_CROP.key+';'+
                               Order.POST_CROP_AND_CENTER.key;
 
-function makeOrderList(orderStr) {
-    var retList= [];
-    if (!orderStr) return retList;
-    var sAry= orderStr.split(';');
-    sAry.forEach((v) => {
-        if (Order.get(v)) retList.push(Order.get(v));
-    });
-    return retList;
-}
+const makeOrderList = (orderStr) => orderStr ? orderStr.split(';').map( (v) => Order.get(v)) : [];
 
 const DEF_ORDER= makeOrderList(DEFAULT_PIPELINE_ORDER);
-
 
 
 /**
@@ -334,6 +346,14 @@ class WebPlotRequest extends ServerRequest {
     //======================== Wise =====================================
 
 
+    /**
+     *
+     * @param wp
+     * @param survey can be Atlas, 3a, 1b
+     * @param band 1,2,3,4
+     * @param sizeInDeg
+     * @return {WebPlotRequest}
+     */
     static makeWiseRequest(wp, survey, band, sizeInDeg) {
         var req = this.makePlotServiceReq(ServiceType.WISE, wp, survey, sizeInDeg);
         req.setParam(C.SURVEY_KEY_BAND, band + '');
@@ -383,9 +403,9 @@ class WebPlotRequest extends ServerRequest {
 
     getExpandedTitle() { return this.getParam(C.EXPANDED_TITLE); }
 
-    setShowTitleArea(show) { this.setParam(C.SHOW_TITLE_AREA, show + ''); }
-
-    getShowTitleArea() { return this.getBooleanParam(C.SHOW_TITLE_AREA); }
+    //setShowTitleArea(show) { this.setParam(C.SHOW_TITLE_AREA, show + ''); }
+    //
+    //getShowTitleArea() { return this.getBooleanParam(C.SHOW_TITLE_AREA); }
 
     getUserDesc() { return this.getParam(C.USER_DESC); }
 
@@ -397,11 +417,30 @@ class WebPlotRequest extends ServerRequest {
 
     /**
      *
-     * @return {TitleOptions}
+     * @return {}
      */
     getTitleOptions() {
-        return TitleOptions.get(this.getParam(C.ZOOM_TYPE)) || TitleOptions.NONE;
+        return TitleOptions.get(this.getParam(C.TITLE_OPTIONS)) || TitleOptions.NONE;
     }
+
+
+
+    /**
+     *
+     * @param option HeaderDecorationOps
+     */
+    setAnnotationOps(option) { this.setParam(C.ANNOTATION_OPS,option.key); }
+
+    /**
+     *
+     * @return {}
+     */
+    getAnnotationOps() {
+        return AnnotationOps.get(this.getParam(C.ANNOTATION_OPS)) || AnnotationOps.INLINE;
+    }
+
+
+
 
     /**
      *
@@ -427,8 +466,8 @@ class WebPlotRequest extends ServerRequest {
     setPostTitle(postTitle) { this.setParam(C.POST_TITLE, postTitle); }
     getPostTitle() { return this.getParam(C.POST_TITLE); }
 
-    setTitleFilenameModePfx(pfx) { this.setParam(C.TITLE_FILENAME_MODE_PFX, pfx); }
-    getTitleFilenameModePfx() { return this.getParam(C.TITLE_FILENAME_MODE_PFX); }
+    //setTitleFilenameModePfx(pfx) { this.setParam(C.TITLE_FILENAME_MODE_PFX, pfx); }
+    //getTitleFilenameModePfx() { return this.getParam(C.TITLE_FILENAME_MODE_PFX); }
 
 
 //======================================================================
@@ -1009,11 +1048,6 @@ class WebPlotRequest extends ServerRequest {
     getHasNewPlotContainer() { this.getBooleanParam(C.HAS_NEW_PLOT_CONTAINER); }
 
 
-
-    setAdvertise(advertise) { this.setParam(C.ADVERTISE, advertise + ''); }
-
-    isAdvertise() { return this.getBooleanParam(C.ADVERTISE); }
-
     /**
      *
      * @param gridOnStatus GridOnStatus
@@ -1028,15 +1062,15 @@ class WebPlotRequest extends ServerRequest {
         return GridOnStatus.get(this.getParam(C.GRID_ON)) ||GridOnStatus.FALSE;
     }
 
-    /**
-     * @param hideTitleZoomLevel boolean
-     */
-    setHideTitleDetail(hideTitleZoomLevel) { this.setParam(C.HIDE_TITLE_DETAIL, hideTitleZoomLevel + ''); }
-
-    /**
-     * @return boolean
-     */
-    getHideTitleDetail() { return this.getBooleanParam(C.HIDE_TITLE_DETAIL); }
+    ///**
+    // * @param hideTitleZoomLevel boolean
+    // */
+    //setHideTitleDetail(hideTitleZoomLevel) { this.setParam(C.HIDE_TITLE_DETAIL, hideTitleZoomLevel + ''); }
+    //
+    ///**
+    // * @return boolean
+    // */
+    //getHideTitleDetail() { return this.getBooleanParam(C.HIDE_TITLE_DETAIL); }
 
     /**
      * @param thumbnailSize int
@@ -1124,31 +1158,49 @@ class WebPlotRequest extends ServerRequest {
     /**
      * Set the order that the image processing pipeline runs when it reads a fits file.
      * This is experimental.  Use at your own risk.
-     * Warning- if you exclude an Order elements the pipeline will not execute that process
-     * even is you have it set in the option.
+     * Warning- if you exclude an Order element, the pipeline will not execute that process
+     * even is you have it set in the options.
      * @param orderList array of Order enums, the order of the pipeline
      */
     setPipelineOrder(orderList) {
-        var out= orderList.reduce((str,v,idx,ary)=> {
-            return str+ v.key + (idx===ary.length-1 ? '': ';');
-        },'');
-        this.setParam(C.PIPELINE_ORDER, out);
+        this.setParam(C.PIPELINE_ORDER, join(';',...orderList));
     }
 
     /**
-     * @return array of Order enums
+     * @return {Array} array of Order enums
      */
     getPipelineOrder() {
-        var retList;
+        var retList= DEF_ORDER;
         if (this.containsParam(C.PIPELINE_ORDER)) {
             retList= makeOrderList(this.getParam(C.PIPELINE_ORDER));
-            if (retList.size()<2) retList= DEF_ORDER;
-        }
-        else {
-            retList= DEF_ORDER;
+            if (retList.length<2) retList= DEF_ORDER;
         }
         return retList;
     }
+
+
+    /**
+     *
+     * @param overlayIdList
+     */
+    setOverlayIds(overlayIdList) {
+        this.setParam(C.OVERLAY_IDS, join(';', ...overlayIdList));
+    }
+
+    /**
+     * @return {Array} array of Order enums
+     */
+    getOverlayIds() {
+        return this.containsParam(C.OVERLAY_IDS) ?
+            this.getParam(C.OVERLAY_IDS).split(';') :
+            ['ACTIVE_TARGET_TYPE','OTHER'];
+            //[ActiveTarget.TYPE_ID,'OTHER'];
+    }
+
+
+
+
+
 
 
     /**

@@ -21,6 +21,8 @@ import edu.caltech.ipac.firefly.visualize.WebPlotRequest;
 import edu.caltech.ipac.firefly.visualize.WebPlotResult;
 import edu.caltech.ipac.firefly.visualize.draw.StaticDrawInfo;
 import edu.caltech.ipac.visualize.plot.ImagePt;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,6 +63,46 @@ public class VisServerCommands {
             return false;
         }
     }
+
+
+    public static class FileFluxCmdJson extends ServerCommandAccess.ServCommand {
+        public String doCommand(Map<String, String[]> paramMap) throws IllegalArgumentException {
+
+
+            SrvParam sp= new SrvParam(paramMap);
+            PlotState state= sp.getState();
+            ImagePt pt = sp.getRequiredImagePt("pt");
+
+            FileAndHeaderInfo fahAry[];
+            List<FileAndHeaderInfo> list = new ArrayList<FileAndHeaderInfo>(3);
+            for(Band b : state.getBands()) {
+                list.add(state.getFileAndHeaderInfo(b));
+            }
+            fahAry = list.toArray(new FileAndHeaderInfo[list.size()]);
+
+            String[] res = VisServerOps.getFileFlux(fahAry, pt);
+
+            JSONObject obj= new JSONObject();
+            obj.put("JSON", true);
+            obj.put("success", true);
+
+            int cnt=0;
+            JSONObject data= new JSONObject();
+            for(Band b : state.getBands()) {
+                data.put(b.toString(), res[cnt++]);
+            }
+            data.put("success", true);
+
+            JSONArray wrapperAry= new JSONArray();
+            obj.put("data", data);
+            wrapperAry.add(obj);
+
+            return wrapperAry.toJSONString();
+        }
+
+    }
+
+
 
     public static class GetWebPlotCmd extends ServerCommandAccess.ServCommand {
 
@@ -114,14 +156,21 @@ public class VisServerCommands {
 
             SrvParam sp= new SrvParam(paramMap);
             PlotState state= sp.getState();
+            boolean jsonDeep= sp.getOptionalBoolean(ServerParams.JSON_DEEP,false);
             List<StretchData> list = new ArrayList<StretchData>(3);
 
             StretchData sd;
-            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "0"));
+//            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "0"));
+            sd= VisJsonSerializer.deserializeStretchDataFromString(
+                    sp.getOptional(ServerParams.STRETCH_DATA + "0"),jsonDeep);
             if (sd != null) list.add(sd);
-            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "1"));
+            sd= VisJsonSerializer.deserializeStretchDataFromString(
+                    sp.getOptional(ServerParams.STRETCH_DATA + "1"),jsonDeep);
+//            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "1"));
             if (sd != null) list.add(sd);
-            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "2"));
+//            sd = StretchData.parse(sp.getOptional(ServerParams.STRETCH_DATA + "2"));
+            sd= VisJsonSerializer.deserializeStretchDataFromString(
+                    sp.getOptional(ServerParams.STRETCH_DATA + "2"),jsonDeep);
             if (sd != null) list.add(sd);
 
             StretchData sdAry[] = list.toArray(new StretchData[list.size()]);
@@ -176,12 +225,19 @@ public class VisServerCommands {
 
         public String doCommand(Map<String, String[]> paramMap) throws IllegalArgumentException {
             SrvParam sp= new SrvParam(paramMap);
-            PlotState state= sp.getState();
             ImagePt pt1= sp.getRequiredImagePt(ServerParams.PT1);
             ImagePt pt2= sp.getRequiredImagePt(ServerParams.PT2);
             boolean cropMultiAll= sp.getOptionalBoolean(ServerParams.CRO_MULTI_ALL, false);
-            WebPlotResult result = VisServerOps.crop(state, pt1, pt2, cropMultiAll);
-            return WebPlotResultSerializer.createJson(result, sp.isJsonDeep());
+            if (paramMap.containsKey(ServerParams.STATE)) {
+                PlotState state= sp.getState();
+                WebPlotResult result = VisServerOps.crop(state, pt1, pt2, cropMultiAll);
+                return WebPlotResultSerializer.createJson(result, sp.isJsonDeep());
+            }
+            else {
+                PlotState stateAry[]= sp.getStateAry();
+                WebPlotResult result = VisServerOps.crop(stateAry, pt1, pt2, cropMultiAll);
+                return WebPlotResultSerializer.createJson(result, sp.isJsonDeep());
+            }
         }
     }
 
@@ -246,10 +302,11 @@ public class VisServerCommands {
         public String doCommand(Map<String, String[]> paramMap) throws IllegalArgumentException {
 
             SrvParam sp= new SrvParam(paramMap);
-            PlotState state= sp.getState();
+//            PlotState state= sp.getState();
+            PlotState stateAry[]= sp.getStateAry();
             boolean north= sp.getRequiredBoolean(ServerParams.NORTH);
             float zoomLevel= sp.getOptionalFloat(ServerParams.ZOOM, -1);
-            WebPlotResult result = VisServerOps.rotateNorth(state, north,zoomLevel);
+            WebPlotResult result = VisServerOps.rotateNorth(stateAry, north,zoomLevel);
             return WebPlotResultSerializer.createJson(result, sp.isJsonDeep());
         }
     }
@@ -258,11 +315,12 @@ public class VisServerCommands {
 
         public String doCommand(Map<String, String[]> paramMap) throws IllegalArgumentException {
             SrvParam sp= new SrvParam(paramMap);
-            PlotState state= sp.getState();
+//            PlotState state= sp.getState();
+            PlotState stateAry[]= sp.getStateAry();
             boolean rotate= sp.getRequiredBoolean(ServerParams.ROTATE);
             double angle= rotate ? sp.getRequiredDouble(ServerParams.ANGLE) : 0.0;
             float zoomLevel= sp.getOptionalFloat(ServerParams.ZOOM, -1);
-            WebPlotResult result = VisServerOps.rotateToAngle(state, rotate, angle,zoomLevel);
+            WebPlotResult result = VisServerOps.rotateToAngle(stateAry, rotate, angle,zoomLevel);
             return WebPlotResultSerializer.createJson(result, sp.isJsonDeep());
         }
     }

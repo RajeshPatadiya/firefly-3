@@ -1,0 +1,18 @@
+/*
+ * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
+ */
+
+
+
+
+
+.iv-decorate-inline-toolbar-container {
+    position : absolute;
+    right : 0;
+    top : 0;
+    padding : 2px 0 0 2px;
+    /*background : rgba(0,0,255,.5);*/
+    whiteSpace : nowrap;
+    /*font-size : 9pt;*/
+    /*border-radius : 0 0 5px 0;*/
+}

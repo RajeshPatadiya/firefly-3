@@ -2,110 +2,114 @@
  * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
 
-/**
- * Created by roby on 9/3/15.
- */
-import React from 'react';
+import React, {Component, PropTypes} from 'react';
 import ReactDOM from 'react-dom';
 import AppDataCntlr from '../core/AppDataCntlr.js';
+import sCompare from 'react-addons-shallow-compare';
 import {flux} from '../Firefly.js';
-//import _ from 'underscore';
 
 
 
+export default {defineDialog, showTmpPopup};
 
-var dialogs= {};
+const dialogs= {};
+const tmpPopups= {};
 const DIALOG_DIV= 'dialogRootDiv';
-var initComplete= false;
+const TMP_ROOT='TMP=';
+var tmpCount=0;
 var divElement;
 
 var init= function() {
     divElement= document.createElement('div');
     document.body.appendChild(divElement);
     divElement.id= DIALOG_DIV;
-    initComplete= true;
 };
 
-var DialogRootComponent = React.createClass(
-{
-    render() {
-        var {dialogs}= this.props;
-        var dialogAry = Object.keys(dialogs).map( (k) =>
-                                React.cloneElement(dialogs[k],{key:k}));
-        return  (
-            <div>
-                {dialogAry}
-            </div>
-        );
+function DialogRootComponent({dialogs,tmpPopups}) {
+    var dialogAry = Object.keys(dialogs).map( (k) => React.cloneElement(dialogs[k],{key:k}));
+    var tmpPopupAry = Object.keys(tmpPopups).map( (k) => React.cloneElement(tmpPopups[k],{key:k}));
+    return  <div> {dialogAry} {tmpPopupAry}</div>;
+}
+
+DialogRootComponent.propTypes = {
+    dialogs : PropTypes.object,
+    tmpPopups : PropTypes.object
+};
+
+
+class PopupStoreConnection extends Component {
+
+    constructor(props)  {
+        super(props);
+        var visible= AppDataCntlr.isDialogVisible(props.dialogId);
+        this.state = { visible};
     }
-});
 
-
-var PopupStoreConnection = React.createClass(
-{
-
-    propTypes: {
-        popupPanel   : React.PropTypes.object.isRequired,
-        dialogId   : React.PropTypes.string.isRequired
-    },
-
-    componentWillMount() { },
+    shouldComponentUpdate(np,ns) { return sCompare(this,np,ns); }
 
     componentWillUnmount() {
         if (this.storeListenerRemove) this.storeListenerRemove();
-    },
-
-
+    }
 
     componentDidMount() {
-        this.storeListenerRemove= flux.addListener( this.changeDialogState);
-    },
-
-    changeDialogState() {
-        this.updateVisibility();
-    },
+        this.storeListenerRemove= flux.addListener(() => this.updateVisibility());
+    }
 
     updateVisibility() {
+        var {visible}= this.state;
         var newVisible= AppDataCntlr.isDialogVisible(this.props.dialogId);
-        if (newVisible !== this.state.visible) {
+        if (newVisible !== visible) {
             this.setState( {visible : newVisible} );
-        }
-    },
-
-    getInitialState() {
-        return { visible: false };
-    },
-
-    closeCallback() {
-        AppDataCntlr.hideDialog(this.props.dialogId);
-    },
-
-
-    render() {
-        if (this.state.visible) {
-            return  React.cloneElement(this.props.popupPanel, { visible: this.state.visible,
-                                                                dialogId : this.props.dialogId,
-                                                                closeCallback : this.closeCallback});
-            //key : DIALOG_DIV + this.props.dialogId})
-        }
-        else {
-            return false;
         }
     }
 
-});
+    render() {
+        var {visible}= this.state;
+        if (!visible) return false;
+        var {dialogId,popupPanel}= this.props;
+        return  React.cloneElement(popupPanel,
+            {
+                visible,
+                requestToClose : () => AppDataCntlr.hideDialog(dialogId)
+            });
+    }
+
+}
+
+PopupStoreConnection.propTypes= {
+    popupPanel : PropTypes.object.isRequired,
+    dialogId   : PropTypes.string.isRequired
+};
+
+
+function reRender(dialogs,tmpPopups) {
+    ReactDOM.render(<DialogRootComponent dialogs={dialogs} tmpPopups={tmpPopups}/>, divElement);
+}
 
 
 /**
  * @param dialogId {string}
  * @param dialog {object}
  */
-var defineDialog= function(dialogId, dialog) {
-    if (!initComplete) init();
+function defineDialog(dialogId, dialog) {
+    if (!divElement) init();
     dialogs[dialogId]= <PopupStoreConnection popupPanel={dialog} dialogId={dialogId}/>;
-    ReactDOM.render(<DialogRootComponent dialogs={dialogs}/>, divElement);
-};
+    reRender(dialogs,tmpPopups);
+}
 
-
-var DialogRootContainer= {defineDialog};
-export default DialogRootContainer;
+/**
+ * @param popup {object}
+ */
+function showTmpPopup(popup) {
+    if (!divElement) init();
+    tmpCount++;
+    const id= TMP_ROOT+tmpCount;
+    tmpPopups[id]= popup;
+    reRender(dialogs,tmpPopups);
+    return () => {
+        if (tmpPopups[id]) {
+            Reflect.deleteProperty(tmpPopups, id);
+            reRender(dialogs,tmpPopups);
+        }
+    };
+}

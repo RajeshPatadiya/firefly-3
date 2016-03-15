@@ -6,7 +6,7 @@ import React from 'react';
 import PureRenderMixin from 'react-addons-pure-render-mixin';
 import {parseTarget} from '../ui/TargetPanelWorker.js';
 import TargetFeedback from '../ui/TargetFeedback.jsx';
-import InputFieldView from '../ui/InputFieldView.jsx';
+import {InputFieldView} from '../ui/InputFieldView.jsx';
 import FieldGroupToStoreMixin from '../fieldGroup/FieldGroupToStoreMixin.js';
 
 
@@ -46,7 +46,7 @@ var TargetPanel= React.createClass(
                groupKey : this.props.groupKey || this.context.groupKey,
                fieldKey : this.props.fieldKey,
                newValue : parseResults.wpt ? parseResults.wpt.toString() : '',
-               message : 'Enter something valid',
+               message : 'Could not resolve object: Enter valid object',
                valid : parseResults.valid,
                asyncUpdatePromise : resolvePromise,
                displayValue,

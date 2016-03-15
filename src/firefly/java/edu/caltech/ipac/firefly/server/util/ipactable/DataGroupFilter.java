@@ -20,8 +20,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -54,12 +55,15 @@ public class DataGroupFilter {
     private int prefetchSize = minPrefetchSize;
     private int cRowNum;
     private boolean hasRowIdFilter = false;
+    private int rowsFound;
+    private Map<String, String> meta;
 
-    DataGroupFilter(File outf, File source, CollectionUtil.Filter<DataObject>[] filters, int prefetchSize) {
+    DataGroupFilter(File outf, File source, CollectionUtil.Filter<DataObject>[] filters, int prefetchSize, Map<String, String> meta) {
         this.outf = outf;
         this.source = source;
         this.filters = CollectionUtil.asList(filters);
         this.prefetchSize = Math.max(minPrefetchSize, prefetchSize);
+        this.meta = meta;
         if (filters != null) {
             for (CollectionUtil.Filter<DataObject> f : filters) {
                 if (f.isRowIndexBased()) {
@@ -72,7 +76,11 @@ public class DataGroupFilter {
     }
 
     public static void filter(File outFile, File source, CollectionUtil.Filter<DataObject>[] filters, int prefetchSize) throws IOException {
-        DataGroupFilter dgw = new DataGroupFilter(outFile, source, filters, prefetchSize);
+        filter(outFile, source, filters, prefetchSize, null);
+    }
+
+    public static void filter(File outFile, File source, CollectionUtil.Filter<DataObject>[] filters, int prefetchSize, Map<String, String> meta) throws IOException {
+        DataGroupFilter dgw = new DataGroupFilter(outFile, source, filters, prefetchSize, meta);
         try {
             dgw.start();
         } finally {
@@ -101,7 +109,7 @@ public class DataGroupFilter {
         DataGroup dg = new DataGroup(null, headers);
 
         boolean needToWriteHeader = true;
-        int found = 0;
+        rowsFound = 0;
         cRowNum = -1;
         String line = reader.readLine();
         while (line != null) {
@@ -123,7 +131,7 @@ public class DataGroupFilter {
                             IpacTableUtil.writeHeader(writer, headers);
                         }
                         IpacTableUtil.writeRow(writer, headers, row);
-                        if (++found == prefetchSize) {
+                        if (++rowsFound == prefetchSize) {
                             processInBackground(dg);
                             doclose = false;
                             break;
@@ -168,6 +176,9 @@ public class DataGroupFilter {
                             if (CollectionUtil.matches(rowIdx, row, filters)) {
                                 row.setRowIdx(rowIdx);
                                 IpacTableUtil.writeRow(writer, headers, row);
+                                if (++rowsFound % 5000 == 0) {
+                                    IpacTableUtil.sendLoadStatusEvents(meta, outf, rowsFound, DataGroupPart.State.INPROGRESS);
+                                }
                             }
                             line = reader.readLine();
                         }
@@ -175,6 +186,7 @@ public class DataGroupFilter {
                     } catch (Exception e) {
                         LOG.error(e, "Unable to parse row:" + line);
                     } finally {
+                        IpacTableUtil.sendLoadStatusEvents(meta, outf, rowsFound, DataGroupPart.State.COMPLETED);
                         doclose = true;
                         close();
                     }

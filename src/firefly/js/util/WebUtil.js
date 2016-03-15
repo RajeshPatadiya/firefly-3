@@ -2,13 +2,19 @@
  * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
 
+/*global __MODULE_NAME__*/
+
 import Enum from 'enum';
+import isBlank from 'underscore.string/isBlank';
+import {cloneDeep} from 'lodash';
 import { getRootURL } from './BrowserUtil.js';
 
 export const ParamType= new Enum(['POUND', 'QUESTION_MARK']);
 
-const saveAsIpacUrl = getRootURL() + 'servlet/SaveAsIpacTable';
 
+export function getModuleName() {
+    return (typeof __MODULE_NAME__ === 'undefined') ? undefined : __MODULE_NAME__;
+}
 
 /**
  * Returns a string where all characters that are not valid for a complete URL have been escaped.
@@ -72,26 +78,6 @@ export const encodeServerUrl= function(url, params) {
     return encodeUrl(url, ParamType.QUESTION_MARK,params);
 };
 
-
-
-
-/**
- *
- * @param {ServerRequest} request
- * @return {string} encoded
- */
-export const getTableSourceUrl= function(request) {
-    request.setStartIndex(0);
-    request.setPageSize(Number.MAX_SAFE_INTEGER);
-    var source = { name : 'request', value : request.toString()};  //todo : i don't think I got this line right
-    var filename = request.getParam('file_name');
-    if (!filename) filename = request.getRequestId();
-    var fn = { name: 'file_name', value : filename};
-    return encodeServerUrl(saveAsIpacUrl, source, fn);
-};
-
-
-
 /**
  * A wrapper for the underlying window.fetch function.
  * see https://github.com/github/fetch for usage.
@@ -109,14 +95,9 @@ export const getTableSourceUrl= function(request) {
 export function fetchUrl(url, options) {
 
     if (!url) return;
-    url = url.trim();
-    options = options || {};
-
-    if ( !(url.startsWith('http') || url.startsWith('/')) ) {
-        url = getRootURL() + url;
-    }
 
     // define defaults request options
+    options = options || {};
     const req = { method: 'GET',
             mode: 'cors',
             credentials: 'include',
@@ -133,14 +114,17 @@ export function fetchUrl(url, options) {
 
     if (options.params) {
         if (options.method.toUpperCase() === 'GET') {
-            url = encodeUrl(url, ParamType.QUESTION_MARK, [options.params]);
+            url = makeUrl(url, options.params);
         } else {
+            url = makeUrl(url);
             if (!options.body) {
                 // if 'post' but, body is not provided, add the parameters into the body.
-                options.body = new FormData();
+                var data = new FormData();
                 Object.keys(options.params).forEach( (key) => {
-                    options.body.append(key, options.params[key]);
+                    data.append(key, options.params[key]);
                 });
+                options.body = data;
+                Reflect.deleteProperty(options, 'params');
             }
         }
     }
@@ -149,13 +133,36 @@ export function fetchUrl(url, options) {
     return fetch(url, options)
         .then( (response) => {
             if (response.ok) {
-                return Promise.resolve(response);
+                return response;
             } else {
-                return Promise.reject(new Error(response.statusText));
+                return new Error(`${url} failed with status: ${response}.statusText`);
             }
         }).catch( (error) => {
-            return Promise.reject(new Error(`Request failed: ${url}`, error));
+            return new Error(`Request failed: ${url}`, error);
         });
+}
+
+function makeUrl(url, params) {
+    var rval = url.trim();
+    if ( !(rval.toLowerCase().startsWith('http') || rval.startsWith('/')) ) {
+        rval = getRootURL() + rval;
+    }
+    if (!params) return rval;
+
+    if (rval.indexOf('?') < 0) {
+        rval += '?';
+    }
+    for(var key in params) {
+        if(!rval.match('[?&]$')) {
+            rval += '&';
+        }
+        rval += encodeURI(key);
+        let val = params[key];
+        if (!isBlank(val)) {
+            rval += '=' + encodeURIComponent(val.toString().trim());
+        }
+    }
+    return rval;
 }
 
 
@@ -163,4 +170,18 @@ export function logError(...message) {
     if (message) {
         message.forEach( (m) => console.log(m.stack ? m.stack : m) );
     }
+}
+
+
+export function download(url) {
+    var nullFrame = document.getElementById('null_frame');
+    if (!nullFrame) {
+        nullFrame = document.createElement('iframe');
+        nullFrame.id = 'null_frame';
+        nullFrame.style.display = 'none';
+        nullFrame.style.width = '0px';
+        nullFrame.style.height = '0px';
+        document.body.appendChild(nullFrame);
+    }
+    nullFrame.src = url;
 }

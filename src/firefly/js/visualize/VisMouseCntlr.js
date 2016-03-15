@@ -3,7 +3,8 @@
 
 import Enum from 'enum';
 import {flux} from '../Firefly.js';
-import PlotViewUtil from './PlotViewUtil.js';
+import {getPlotViewById, primePlot} from './PlotViewUtil.js';
+import {visRoot} from './ImagePlotCntlr.js';
 import CsysConverter from './CsysConverter.js';
 import {makeScreenPt} from './Point.js';
 
@@ -22,25 +23,19 @@ import {makeScreenPt} from './Point.js';
  */
 const MOUSE_STATE_CHANGE= 'VisMouseCntlr/MouseStateChange';
 
-
-const ADD_MOUSE_GRAB= 'VisMouseCntlr/AddMouseGrab';
-const REMOVE_MOUSE_GRAB= 'VisMouseCntlr/AddMouseGrab';
-const ADD_MOUSE_PERSISTENT= 'VisMouseCntlr/AddMousePersistent';
-const REMOVE_MOUSE_PERSISTENT= 'VisMouseCntlr/RemoveMousePersistent';
-
 const VIS_MOUSE_KEY= 'visMouseState';
 
 
-const MouseState= new Enum(['NONE', 'ENTER', 'EXIT', 'DOWN', 'UP', 'DRAG_COMPONENT', 'DRAG', 'MOVE', 'CLICK','DOUBLE_CLICK']);
+export const MouseState= new Enum(['NONE', 'ENTER', 'EXIT', 'DOWN', 'UP',
+                                   'DRAG_COMPONENT', 'DRAG', 'MOVE', 'CLICK',
+                                   'DOUBLE_CLICK']);
+
+export function currMouseState() { return flux.getState()[VIS_MOUSE_KEY]; }
 
 //============ EXPORTS ===========
 //============ EXPORTS ===========
 
-export default {reducer, MouseState, fireMouseEvent,
-                VIS_MOUSE_KEY,
-                MOUSE_STATE_CHANGE, ADD_MOUSE_GRAB,
-                REMOVE_MOUSE_GRAB, ADD_MOUSE_PERSISTENT,
-                REMOVE_MOUSE_PERSISTENT
+export default {reducer, MouseState, VIS_MOUSE_KEY, MOUSE_STATE_CHANGE
 };
 
 
@@ -66,12 +61,6 @@ function reducer(state=initState(), action={}) {
         case MOUSE_STATE_CHANGE:
             retState= processMouseStateChange(state,action);
             break;
-        case ADD_MOUSE_GRAB:
-        case REMOVE_MOUSE_GRAB:
-        case ADD_MOUSE_PERSISTENT:
-        case REMOVE_MOUSE_PERSISTENT:
-            retState= processAddRemove(state,action);
-            break;
         default:
             break;
     }
@@ -81,98 +70,49 @@ function reducer(state=initState(), action={}) {
 
 function processMouseStateChange(state,action) {
 
-    var {plotId, mouseState, modifiers, currWorldSpacePt,
-        currScreenPt, currImagePt, currWorldPt}= action;
-    return Object.assign({}, state, {plotId, mouseState, modifiers, currWorldSpacePt,
-                                     currScreenPt, currImagePt, currWorldPt});
+    var {plotId, mouseState, modifiers, screenPt, imagePt, worldPt}= action.payload;
+    return Object.assign({}, state, {plotId, mouseState, modifiers, screenPt, imagePt, worldPt});
 }
 
 
-function processAddRemove(state,action) {
 
-    var persistentMouseActionAry;
-    var grabMouseActionStack ;
-    var {actionConst}= action.payload;
-    var retState= state;
-    switch (action.type) {
-        case ADD_MOUSE_GRAB:
-            grabMouseActionStack= [actionConst, ...state.grabMouseActionStack];
-            retState= Object.assign({}, state,grabMouseActionStack);
-            break;
-        case REMOVE_MOUSE_GRAB:
-            grabMouseActionStack= state.grabMouseActionStack.filter( (a) => actionConst!=a);
-            retState= Object.assign({}, state,grabMouseActionStack);
-            //todo
-            break;
-        case ADD_MOUSE_PERSISTENT:
-            persistentMouseActionAry = [...state.persistentMouseActionAry, actionConst];
-            retState=  Object.assign({}, state,persistentMouseActionAry);
-            break;
-        case REMOVE_MOUSE_PERSISTENT:
-            persistentMouseActionAry= state.persistentMouseActionAry.filter( (a) => actionConst!=a);
-            retState=  Object.assign({}, state,persistentMouseActionAry);
-            //todo
-            break;
+
+//============ Action Creators ===========
+//============ Action Creators ===========
+//============ Action Creators ===========
+export function dispatchMouseStateChange(payload) {
+    flux.process({type: MOUSE_STATE_CHANGE, payload});
+}
+
+
+
+
+/**
+ *
+ * @param {string} plotId
+ * @param {Enum} mouseState
+ * @param {Object} screenPt
+ * @param {number} screenX
+ * @param {number} screenY
+ * @param shiftDown
+ * @param controlDown
+ * @param metaDown
+ * @return {{plotId: string, mouseState: Enum, screenPt: object, imagePt: object, worldPt: object, screenX: number, screenY: number}}
+ */
+export function makeMouseStatePayload(plotId,mouseState,screenPt,screenX,screenY,
+                               {shiftDown,controlDown,metaDown}= {}) {
+    var payload={mouseState,screenPt,screenX,screenY, shiftDown,controlDown,metaDown};
+    if (plotId) {
+        var cc= CsysConverter.make(primePlot(visRoot(),plotId));
+        if (cc) {
+            payload.plotId= plotId;
+            payload.imagePt= cc.getImageCoords(screenPt);
+            payload.worldPt= cc.getWorldCoords(screenPt);
+        }
+
     }
-    return retState;
-
+    return payload;
 }
-
-
-
-
-
-//============ Action Creators ===========
-//============ Action Creators ===========
-//============ Action Creators ===========
-
-function fireMouseEvent(plotId, mouseState, currScreenPt) {
-
-    var plot=PlotViewUtil.getPrimaryPlot(plotId);
-    var currViewPortPt;
-    var currImagePt;
-    var currWorldPt;
-
-    if (currScreenPt && plot) {
-        var cc= CsysConverter.make(plot);
-        currViewPortPt= cc.getViewPortCoords(currScreenPt);
-        currImagePt= cc.getImageCoords(currScreenPt);
-        currWorldPt= cc.getWorldCoords(currImagePt);
-    }
-
-    flux.process({type: MOUSE_STATE_CHANGE,
-                  payload: {plotId, mouseState, currScreenPt, currViewPortPt,
-                            currImagePt, currWorldPt}});
-
-}
-
-
-function fireAddMousePersistentAction(actionConst) {
-    flux.process({type: ADD_MOUSE_PERSISTENT,
-        payload: {actionConst}});
-
-}
-
-function fireRemoveMousePersistentAction(actionConst) {
-    flux.process({type: REMOVE_MOUSE_PERSISTENT,
-        payload: {actionConst}});
-
-}
-
-
-function fireAddMouseGrabAction(actionConst) {
-    flux.process({type: ADD_MOUSE_GRAB,
-        payload: {actionConst}});
-
-}
-
-function fireRemoveMouseGrabAction(actionConst) {
-    flux.process({type: REMOVE_MOUSE_GRAB,
-        payload: {actionConst}});
-
-}
-
-
 //======================================== Private ======================================
 //======================================== Private ======================================
 //======================================== Private ======================================
@@ -181,14 +121,12 @@ function fireRemoveMouseGrabAction(actionConst) {
 const initState= function() {
 
     return {
-        currMouseState : MouseState.NONE,
-        currPlotId : null,
-        currWorldSpacePt : null,
-        currScreenPt : null,
-        currImagePt : null,
-        currWorldPt : null,
-        persistentMouseActionAry : [],
-        grabMouseActionStack : []
+        mouseState : MouseState.NONE,
+        plotId : null,
+        screenPt : null,
+        imagePt : null,
+        worldPt : null,
+        modifiers: {}
     };
 
 };

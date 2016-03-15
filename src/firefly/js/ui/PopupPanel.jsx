@@ -2,17 +2,18 @@
  * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
 
+import React, {Componennt, PropTypes} from 'react';
 import {getRootURL, getAbsoluteLeft, getAbsoluteTop} from '../util/BrowserUtil.js';
 import _ from 'lodash';
 import Enum from 'enum';
-import React from 'react';
 import ReactDOM from 'react-dom';
 import {getPopupPosition, humanStart, humanMove, humanStop } from './PopupPanelHelper.js';
+import './PopupPanel.css';
 
 
 const LayoutType= new Enum(['CENTER', 'TOP_CENTER', 'NONE', 'USER_POSITION']);
 
-var PopupPanel= React.createClass(
+export var PopupPanel= React.createClass(
 {
     browserResizeCallback : null,
     mouseCtx: null,
@@ -21,16 +22,14 @@ var PopupPanel= React.createClass(
     buttonUpCallback : null,
 
     propTypes: {
-        layoutPosition : React.PropTypes.object,
-        title : React.PropTypes.string,
-        closePromise : React.PropTypes.object,
-        closeCallback : React.PropTypes.func,
-        visible : React.PropTypes.bool
+        layoutPosition : PropTypes.object,
+        title : PropTypes.string,
+        closePromise : PropTypes.object,
+        requestToClose : PropTypes.func,
+        closeCallback : PropTypes.func,
+        visible : PropTypes.bool
     },
 
-    //onClick: function(ev) {
-    //    this.doClose();
-    //},
 
     updateLayoutPosition() {
         var e= ReactDOM.findDOMNode(this);
@@ -59,6 +58,7 @@ var PopupPanel= React.createClass(
         window.removeEventListener('resize', this.browserResizeCallback);
         document.removeEventListener('mousemove', this.moveCallback);
         document.removeEventListener('mouseup', this.buttonUpCallback);
+        if (this.props.closeCallback) this.props.closeCallback();
     },
 
 
@@ -77,15 +77,13 @@ var PopupPanel= React.createClass(
         document.addEventListener('mouseup', this.buttonUpCallback);
         if (this.props.closePromise) {
             this.props.closePromise.then(()=>  {
-                console.log('now closing dialog');
-                this.doClose();
+                this.askParentToClose();
             });
         }
     },
 
-    doClose() {
-        if (this.props.closeCallback) this.props.closeCallback();
-        console.log('close dialog');
+    askParentToClose() {
+        if (this.props.requestToClose) this.props.requestToClose();
     },
 
     dialogMoveStart(ev)  {
@@ -126,18 +124,15 @@ var PopupPanel= React.createClass(
 
 
         var title= this.props.title||'';
-        //var newChildren= React.Children.map(this.props.children, (c) => {
-        //        return React.cloneElement(c, {closeDialog:this.doClose.bind(this)})
-        //    })
 
         return (
-                <div style={rootStyle} className={'popup-pane-shadow disable-select'}
+                <div style={rootStyle} className={'popup-panel-shadow disable-select'}
                      onTouchStart={this.dialogMoveStart}
                      onTouchMove={this.dialogMove}
                      onTouchEnd={this.dialogMoveEnd} >
                     <div className={'standard-border'}>
                         <div style={{position:'relative', height:'14px', width:'100%', cursor:'default'}}
-                             className={'title-bar title-color popup-title-horizontal-background'}
+                             className={'title-bar title-color popup-panel-title-background'}
                             onTouchStart={this.dialogMoveStart}
                             onTouchMove={this.dialogMove}
                             onTouchEnd={this.dialogMoveEnd}
@@ -151,10 +146,10 @@ var PopupPanel= React.createClass(
                                  className={'title-label'} >
                                 {title}
                             </div>
-                            <image className={'popup-header'}
+                            <image className={'popup-panel-header'}
                                    src= {`${getRootURL()}images/blue_delete_10x10.gif`}
                                    style= {{position:'absolute', right:'0px', top:'0px'}}
-                                   onClick={this.doClose} />
+                                   onClick={this.askParentToClose} />
 
                         </div>
                         <div style={{display:'table'}}>
@@ -177,5 +172,3 @@ var PopupPanel= React.createClass(
     }
 
 });
-
-export default PopupPanel;

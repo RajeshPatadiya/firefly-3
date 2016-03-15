@@ -28,10 +28,9 @@ var typeInject= {
 
 
 var makePrecisionStr= function(value,precision) {
-    if (value !== undefined && value!==null && precision) {
-        return sprintf('%.'+precision+'f',value);
-    }
-    return (value || '')+ '';
+    if (value !== undefined && value!==null) {
+        return (precision) ? sprintf('%.'+precision+'f',value) : value;
+    } else return '';
 };
 
 var makeErrorMessage= function(description,min,max,precision) {
@@ -86,6 +85,18 @@ export const validateEmail = function(description,valStr) {
     return retval;
 };
 
+export const validateUrl = function(description,valStr) {
+    var retval = {
+        valid: true,
+        message: ''
+    };
+    if (!validator.isURL(valStr)) {
+        retval.valid = false;
+        retval.message = description + ': must be a valid URL';
+    }
+    return retval;
+};
+
 export const intRange = function(min,max,description, valStr) {
    return validateRange(min,max,null,description,typeInject.asInt,valStr);
 };
@@ -117,7 +128,38 @@ export const isInt = function(description, valStr) {
     return retval;
 };
 
+export const isHexColorStr = function(description, valStr) {
+    var retval= { valid : true, message : '' };
+    if (valStr && !/^#[0-9a-f]{6}/.test(valStr)) {
+        retval.valid = false;
+        retval.message = description + ': must be a hex color exactly 7 characters long';
+    }
+
+};
+
+
+/*---------------------------- validator function used by InputField to validate a value -----------------------------*/
+/*---- these factory functions creates a validation function that takes a value and return {valid,message} -----------*/
+export const intValidator = function(min,max,description) {
+    return (val) => intRange(min, max, description, val);
+};
+
+export const floatValidator = function(min,max,description) {
+    return (val) => floatRange(min, max, description, val);
+};
+
+export const urlValidator = function(description) {
+    return (val) => validateUrl(description, val);
+};
+
+export const emailValidator = function(description) {
+    return (val) => validateEmail(description, val);
+};
+/*--------------------------------------------------------------------------------------------------------------------*/
+
+
+
 var Validate = {
-    validateEmail, intRange, floatRange, isFloat, isInt
+    validateEmail, validateUrl, intRange, floatRange, isFloat, isInt
 };
 export default Validate;

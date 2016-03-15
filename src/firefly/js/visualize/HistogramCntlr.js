@@ -1,57 +1,46 @@
 /*
- Possible structure of histogram store:
- /histogram
-   searchReq: ServerRequest - if source table changes, histogram store should be cleared
-   isColStatsReady: boolean
-   colStats: [ColValuesStatistics]
-   isColDataReady: boolean
-   histogramData: [[numInBin: int, min: double, max: double]*]
-   histogramParams: {
-          columnOrExpr: column name or column expression
-          algorithm: 'fixedSizeBins' or 'byesianBlocks'
-          numBins: int - for 'fixedSizeBins' algorithm
-          falsePositiveRate: double - for 'byesianBlocks' algorithm (default 0.05)
-          minCutoff: double
-          maxCutoff: double
+ * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
-
 import {flux} from '../Firefly.js';
-import ColValuesStatistics from './ColValuesStatistics.js';
-import {ServerRequest} from '../data/ServerRequest.js';
-import {getRawDataSet} from '../rpc/SearchServicesJson.js';
-import {parseRawDataSet} from '../util/DataSetParser.js';
 
-const HISTOGRAM_DATA_KEY = 'histogram';
-const LOAD_TBL_STATS = 'histogram/LOAD_TBL_STATS';
-const UPDATE_TBL_STATS = 'histogram/UPDATE_TBL_STATS';
-const LOAD_COL_DATA = 'histogram/LOAD_COL_DATA';
-const UPDATE_COL_DATA = 'histogram/UPDATE_COL_DATA';
+import {has, get, set} from 'lodash';
 
+import {TableRequest} from '../tables/TableRequest.js';
+import * as TableUtil from '../tables/TableUtil.js';
 
 /*
- * Get the number of points, min and max values, units and description for each table column
- * @param {ServerRequest} searchRequest - table search request
+ Possible structure of store:
+ /histogram
+   tbl_id: Object - the name of this node matches table id
+   {
+         // tblHistogramData
+         isColDataReady: boolean
+         histogramData: [[numInBin: int, min: double, max: double]*]
+         histogramParams: {
+           columnOrExpr: column name or column expression
+           algorithm: 'fixedSizeBins' or 'byesianBlocks'
+           numBins: int - for 'fixedSizeBins' algorithm
+           x: [log,flip] x (domain) axis options
+           y: [log,flip] y (counts) axis options
+           falsePositiveRate: double - for 'byesianBlocks' algorithm (default 0.05)
+           minCutoff: double
+           maxCutoff: double
+         }
+   }
  */
-const dispatchLoadTblStats = function(searchRequest) {
-    flux.process({type: LOAD_TBL_STATS, payload: {searchRequest }});
-};
 
-/*
- * The statistics is successfully returned from the server, update the store
- * @param {boolean} isColStatsReady flags that column statistics is now available
- * @param {ColValuesStatistics[]} an array which holds column statistics for each column
- * @param {ServerRequest} table search request
- */
-const dispatchUpdateTblStats = function(isColStatsReady,colStats,searchReq) {
-    flux.process({type: UPDATE_TBL_STATS, payload: {isColStatsReady,colStats,searchReq}});
-};
+
+export const HISTOGRAM_DATA_KEY = 'histogram';
+export const LOAD_COL_DATA = `${HISTOGRAM_DATA_KEY}/LOAD_COL_DATA`;
+export const UPDATE_COL_DATA = `${HISTOGRAM_DATA_KEY}/UPDATE_COL_DATA`;
+
 
 /*
  * Get column histogram data
  * @param {Object} histogramParams - histogram options (column name, etc.)
  * @param {ServerRequest} searchRequest - table search request
  */
-const dispatchLoadColData = function(histogramParams, searchRequest) {
+export const dispatchLoadColData = function(histogramParams, searchRequest) {
     flux.process({type: LOAD_COL_DATA, payload: {histogramParams, searchRequest}});
 };
 
@@ -63,29 +52,16 @@ const dispatchLoadColData = function(histogramParams, searchRequest) {
  * @param {ServerRequest} searchRequest - table search request
  */
 const dispatchUpdateColData = function(isColDataReady, histogramData, histogramParams, searchRequest) {
-    flux.process({type: LOAD_COL_DATA, payload: {isColDataReady,histogramData,histogramParams,searchRequest}});
-};
-
-/*
- * @param rawAction (its payload should contain searchRequest to get source table)
- * @returns function which loads statistics (column name, num. values, range of values) for a source table
- */
-const loadTblStats = function(rawAction) {
-    return (dispatch) => {
-        dispatch({ type : LOAD_TBL_STATS });
-        if (rawAction.payload.searchRequest) {
-            fetchTblStats(dispatch, rawAction.payload.searchRequest);
-        }
-    };
+    flux.process({type: UPDATE_COL_DATA, payload: {isColDataReady,histogramData,histogramParams,searchRequest}});
 };
 
 /*
  * @param rawAction (its payload should contain searchRequest to get source table and histogram parameters)
  * @returns function which loads statistics (column name, num. values, range of values) for a source table
  */
-const loadColData = function(rawAction) {
+export const loadColData = function(rawAction) {
     return (dispatch) => {
-        dispatch({ type : LOAD_COL_DATA });
+        dispatch({ type : LOAD_COL_DATA, payload : rawAction.payload });
         if (rawAction.payload.searchRequest && rawAction.payload.histogramParams) {
             fetchColData(dispatch, rawAction.payload.searchRequest, rawAction.payload.histogramParams);
         }
@@ -94,39 +70,50 @@ const loadColData = function(rawAction) {
 };
 
 function getInitState() {
-    return {
-        isColStatsReady : false
-    };
+    return {};
 }
 
-function reducer(state=getInitState(), action={}) {
 
+/*
+ Get the new state related to a particular table (if it's tracked)
+ @param tblId {string} table id
+ @param state {object} histogram store
+ @param newProps {object} new properties
+ @return {object} new state
+ */
+function stateWithNewData(tblId, state, newProps) {
+    if (has(state, tblId)) {
+        const tblData = get(state, tblId);
+        const newTblData = Object.assign({}, tblData, newProps);
+        const newState = Object.assign({}, state);
+        set(newState, tblId, newTblData);
+        return newState;
+    }
+    return state;
+}
+
+export function reducer(state=getInitState(), action={}) {
     switch (action.type) {
-        case (LOAD_TBL_STATS)  :
-            return Object.assign({}, state, getInitState());
-
-        case (UPDATE_TBL_STATS)  :
-            return Object.assign({}, state, action.payload);
-
         case (LOAD_COL_DATA)  :
-            return Object.assign({}, state, {isColDataReady : false});
-
+        {
+            let {histogramParams, searchRequest} = action.payload;
+            const newState = Object.assign({}, state);
+            set(newState, searchRequest.tbl_id, {isColDataReady: false});
+            return newState;
+        }
         case (UPDATE_COL_DATA)  :
-            return Object.assign({}, state, action.payload);
-
+        {
+            let {isColDataReady, histogramData, histogramParams, searchRequest} = action.payload;
+            return stateWithNewData(searchRequest.tbl_id, state, {
+                isColDataReady,
+                histogramData,
+                histogramParams,
+                searchRequest
+            });
+        }
         default:
             return state;
     }
-}
-
-
-/**
- *
- * @param statsData {Object} The table statistics object to merge with the histogram branch under root
- * @returns {{type: string, payload: object}}
- */
-function updateTblStats(statsData) {
-    return { type : UPDATE_TBL_STATS, payload: statsData };
 }
 
 /**
@@ -136,51 +123,6 @@ function updateTblStats(statsData) {
  */
 function updateColData(data) {
     return { type : UPDATE_COL_DATA, payload: data };
-}
-
-/**
- * fetches histogram data for a column or column expression of an active table
- * set isColStatsReady to true once done.
- * @param dispatch
- * @param activeTableServerRequest table search request to obtain source table
- */
-function fetchTblStats(dispatch, activeTableServerRequest) {
-
-    /*
-     // Sample TableServerRequest
-     const sreq = new ServerRequest('IpacTableFromSource');
-     req.setParam({name : 'source', value : 'http://web.ipac.caltech.edu/staff/roby/demo/WiseDemoTable.tbl'});
-     req.setParam({name : 'startIdx', value : '0'});
-     req.setParam({name : 'pageSize', value : '1000000'});
-     */
-    const sreq = Object.assign({}, activeTableServerRequest, {'startIdx': 0, 'pageSize': 1000000});
-
-    const req = new ServerRequest('IpacTableFromSource');
-    req.setParam({name: 'processor', value: 'StatisticsProcessor'});
-    req.setParam({name: 'searchRequest', value: JSON.stringify(sreq.params)});
-    req.setParam({name: 'startIdx', value: '0'});
-    req.setParam({name: 'pageSize', value: '10000'});
-    getRawDataSet(req).then(
-        (rawDataSet) => {
-            const dataSet = parseRawDataSet(rawDataSet);
-            const model = dataSet.getModel();
-            const colStats = [];
-            for (let i = 0; i < model.size(); i++) {
-                const arow = model.getRow(i);
-                colStats.push(new ColValuesStatistics(...arow));
-            }
-            dispatch(updateTblStats(
-                {
-                    isColStatsReady: true,
-                    colStats,
-                    searchReq: sreq
-                }));
-        }
-    ).catch(
-        (reason) => {
-            console.error(`Failed to fetch table statistics: ${reason}`);
-        }
-    );
 }
 
 /**
@@ -195,45 +137,55 @@ function fetchColData(dispatch, activeTableServerRequest, histogramParams) {
 
     const sreq = Object.assign({}, activeTableServerRequest, {'startIdx' : 0, 'pageSize' : 1000000});
 
-    const req = new ServerRequest('IpacTableFromSource');
-    req.setParam({name : 'processor', value : 'HistogramProcessor'});
-    req.setParam({name : 'searchRequest', value : JSON.stringify(sreq.params)});
+    const req = TableRequest.newInstance({id:'HistogramProcessor'});
+    req.searchRequest = JSON.stringify(sreq);
 
-    // histogarm parameters
-    req.setParam({name : 'columnExpression', value : histogramParams.columnOrExpr});
+    // histogram parameters
+    req.columnExpression = histogramParams.columnOrExpr;
+    if (histogramParams.x && histogramParams.x.includes('log')) {
+        req.columnExpression = 'log('+req.columnExpression+')';
+    }
     if (histogramParams.numBins) { // fixed size bins
-        req.setParam({name: 'numBins', value: histogramParams.numbins});
+        req.numBins = histogramParams.numBins;
     }
     if (histogramParams.falsePositiveRate) {  // variable size bins using Bayesian Blocks
-        req.setParam({name: 'falsePositiveRate', value: histogramParams.falsePositiveRate});
+        req.falsePositiveRate = histogramParams.falsePositiveRate;
     }
     if (histogramParams.minCutoff) {
-        req.setParam({name: 'min', value: histogramParams.minCutoff});
+        req.min = histogramParams.minCutoff;
     }
     if (histogramParams.maxCutoff) {
-        req.setParam({name: 'max', value: histogramParams.maxCutoff});
+        req.max = histogramParams.maxCutoff;
     }
 
-    req.setParam({name : 'startIdx', value : '0'});
-    req.setParam({name : 'pageSize', value : '10000'});
-    getRawDataSet(req).then(
-        (rawDataSet) => {
-            const histogramData = [];
-            const dataSet = parseRawDataSet(rawDataSet);
-            const model = dataSet.getModel();
-            var toNumber = (val)=>Number(val);
-            for (let i = 0; i < model.size(); i++) {
-                const arow = model.getRow(i);
-                histogramData.push(arow.map(toNumber));
-            }
+    req.tbl_id = activeTableServerRequest.tbl_id;
 
-            dispatch(updateColData(
-                {
-                    isColDataReady : true,
-                    histogramParams,
-                    histogramData,
-                    searchReq : sreq
-                }));
+    TableUtil.doFetchTable(req).then(
+        (tableModel) => {
+            if (tableModel.tableData && tableModel.tableData.data) {
+                // if logarithmic values were requested, convert the returned exponents back
+                var toNumber = histogramParams.x.includes('log') ?
+                    (val,i)=>{
+                        if (i === 0) {
+                            return Number(val);
+                        }
+                        else {
+                            return Math.pow(10,Number(val));
+                        }
+                    } : (val)=>Number(val);
+                const histogramData = tableModel.tableData.data.reduce((data, arow) => {
+                    data.push(arow.map(toNumber));
+                    return data;
+                }, []);
+
+                dispatch(updateColData(
+                    {
+                        isColDataReady : true,
+                        histogramParams,
+                        histogramData,
+                        searchRequest : sreq
+                    }));
+            }
         }
     ).catch(
         (reason) => {
@@ -241,18 +193,3 @@ function fetchColData(dispatch, activeTableServerRequest, histogramParams) {
         }
     );
 }
-
-
-
-var HistogramCntlr = {
-    reducer,
-    HISTOGRAM_DATA_KEY,
-    dispatchLoadTblStats,
-    dispatchLoadColData,
-    loadTblStats,
-    LOAD_TBL_STATS,
-    UPDATE_TBL_STATS,
-    loadColData,
-    LOAD_COL_DATA,
-    UPDATE_COL_DATA };
-export default HistogramCntlr;

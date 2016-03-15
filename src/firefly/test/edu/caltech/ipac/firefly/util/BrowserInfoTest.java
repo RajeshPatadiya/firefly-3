@@ -38,7 +38,7 @@ public class BrowserInfoTest {
 			this.b=b;
 			this.vers=ver;
 		}
-		
+
 		public int getVersion() {
 			return vers;
 		}

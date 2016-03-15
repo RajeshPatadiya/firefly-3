@@ -24,7 +24,8 @@ var def_config = {
     deploy_dir  : (process.env.HYDRA_ROOT || '/hydra') + `/server/tomcat/webapps/${config.name}`,
     alias       : {
             firefly : path.resolve(config.firefly_dir, 'js'),
-            styles : path.resolve(config.src, 'styles')
+            styles : path.resolve(config.firefly_dir, 'html', 'css'),
+            html : path.resolve(config.firefly_dir, 'html')
         }
 };
 
@@ -32,25 +33,27 @@ config.alias = Object.assign(def_config.alias, config.alias);
 config = Object.assign(def_config, config);
 
 
+var script_names = [];
+Object.keys(config.entry).forEach( (v) => {
+    script_names.push(v + '.js');
+});
+
 const globals = {
-            'process.env'  : {
-                'NODE_ENV' : JSON.stringify(config.env)
-            },
-            'NODE_ENV'     : config.env,
-            '__DEV__'      : config.env === 'local' || config.env === 'dev',
-            '__PROD__'     : config.env === 'ops' || config.env === 'test',
-            '__DEBUG__'    : config.env === 'development' && process.env.DEBUG
-        };
+    'process.env'  : {
+                        NODE_ENV : JSON.stringify(config.env)
+                    },
+    NODE_ENV     : config.env,
+    __DEV__      : config.env === 'local' || config.env === 'dev',
+    __PROD__     : config.env === 'ops' || config.env === 'test',
+    __DEBUG__    : config.env === 'development' && process.env.DEBUG,
+    __SCRIPT_NAME__ : JSON.stringify(script_names),
+    __MODULE_NAME__ : JSON.stringify(config.name)
+};
 
 var output_path = config.dist;
 if (globals.__DEBUG__) {
     output_path = config.deploy_dir;
 }
-
-var script_names = [];
-Object.keys(config.entry).forEach( (v) => {
-    script_names.push(v + '.js');
-});
 
 /*
 * creating the webpackConfig based on the project's config for webpack to work on.
@@ -66,9 +69,7 @@ var webpackConfig = {
         path       : output_path
     },
     plugins : [
-        new webpack.DefinePlugin(Object.assign(globals, {
-            __SCRIPT_NAME__ : JSON.stringify(script_names)
-        })),
+        new webpack.DefinePlugin(globals),
         new webpack.optimize.OccurrenceOrderPlugin(),
         new webpack.optimize.DedupePlugin(),
         new ExtractTextPlugin(`${config.name}.css`),
@@ -90,9 +91,12 @@ var webpackConfig = {
                 exclude: exclude_dirs,
                 loaders : [
                     'style-loader',
-                    'css-loader',
+                    `css-loader?root=${path.resolve(config.firefly_dir, 'html')}`,
                     'autoprefixer?browsers=last 2 version'
                 ]
+            },
+            { test: /\.(png|jpg|gif)$/,
+                loader: `url-loader?root=${path.resolve(config.firefly_dir, 'html')}`
             }
         ]
     },

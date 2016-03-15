@@ -8,13 +8,34 @@ import thunkMiddleware from 'redux-thunk';
 import loggerMiddleware from 'redux-logger';
 import { createStore, applyMiddleware, combineReducers } from 'redux';
 import { connect, Provider } from 'react-redux';
-import { actionSideEffectMiddleware } from 'firefly/side-effects';
+import { actionSideEffectMiddleware } from '../side-effects';
 import AppDataCntlr  from './AppDataCntlr.js';
+import {LAYOUT_PATH, reducer as layoutReducer}  from './LayoutCntlr.js';
 import FieldGroupCntlr from '../fieldGroup/FieldGroupCntlr.js';
-import ImagePlotCntlr from '../visualize/ImagePlotCntlr.js';
+import ImagePlotCntlr, {IMAGE_PLOT_KEY,
+                        plotImageActionCreator, zoomActionCreator,
+                        colorChangeActionCreator, stretchChangeActionCreator,
+                        rotateActionCreator, flipActionCreator,
+                        cropActionCreator, autoPlayActionCreator,
+                        changePointSelectionActionCreator  } from '../visualize/ImagePlotCntlr.js';
+
 import ExternalAccessCntlr from './ExternalAccessCntlr.js';
 import VisMouseCntlr from '../visualize/VisMouseCntlr.js';
-import HistogramCntlr from '../visualize/HistogramCntlr.js';
+import * as TableStatsCntlr from '../visualize/TableStatsCntlr.js';
+import * as HistogramCntlr from '../visualize/HistogramCntlr.js';
+import * as XYPlotCntlr from '../visualize/XYPlotCntlr.js';
+import * as TablesCntlr from '../tables/TablesCntlr';
+import * as TablesUiCntlr from '../tables/TablesUiCntlr';
+import DrawLayer, {DRAWING_LAYER_KEY} from '../visualize/DrawLayerCntlr.js';
+import DrawLayerFactory from '../visualize/draw/DrawLayerFactory.js';
+import DrawLayerCntlr, {makeDetachLayerActionCreator} from '../visualize/DrawLayerCntlr.js';
+
+//--- import drawing Layers
+import ActiveTarget from '../drawingLayers/ActiveTarget.js';
+import SelectArea from '../drawingLayers/SelectArea.js';
+import DistanceTool from '../drawingLayers/DistanceTool.js';
+import PointSelection from '../drawingLayers/PointSelection.js';
+import StatsPoint from '../drawingLayers/StatsPoint.js';
 
 /**
  * A map to rawAction.type to an ActionCreator
@@ -22,17 +43,29 @@ import HistogramCntlr from '../visualize/HistogramCntlr.js';
  */
 const actionCreators = new Map();
 
+
+
+const drawLayerFactory= DrawLayerFactory.makeFactory(ActiveTarget,SelectArea,DistanceTool,
+                                                     PointSelection, StatsPoint );
+
+
 /**
  * A collection of reducers keyed by the node's name under the root.
  * @type {Object<string, function>}
  */
 const reducers = {
     [AppDataCntlr.APP_DATA_PATH]: AppDataCntlr.reducer,
+    [LAYOUT_PATH]: layoutReducer,
     [VisMouseCntlr.VIS_MOUSE_KEY]: VisMouseCntlr.reducer,
     [FieldGroupCntlr.FIELD_GROUP_KEY]: FieldGroupCntlr.reducer,
-    [ImagePlotCntlr.IMAGE_PLOT_KEY]: ImagePlotCntlr.reducer,
+    [IMAGE_PLOT_KEY]: ImagePlotCntlr.reducer,
     [ExternalAccessCntlr.EXTERNAL_ACCESS_KEY]: ExternalAccessCntlr.reducer,
-    [HistogramCntlr.HISTOGRAM_DATA_KEY]: HistogramCntlr.reducer
+    [TableStatsCntlr.TBLSTATS_DATA_KEY]: TableStatsCntlr.reducer,
+    [HistogramCntlr.HISTOGRAM_DATA_KEY]: HistogramCntlr.reducer,
+    [XYPlotCntlr.XYPLOT_DATA_KEY]: XYPlotCntlr.reducer,
+    [TablesCntlr.TABLE_SPACE_PATH]: TablesCntlr.reducer,
+    [TablesUiCntlr.TABLE_UI_PATH]: TablesUiCntlr.reducer,
+    [DRAWING_LAYER_KEY]: DrawLayer.makeReducer(drawLayerFactory)
 };
 
 let redux = null;
@@ -40,13 +73,32 @@ let redux = null;
 
 // pre-map a set of action => creator prior to boostraping.
 actionCreators.set(AppDataCntlr.APP_LOAD, AppDataCntlr.loadAppData);
+actionCreators.set(AppDataCntlr.HELP_LOAD, AppDataCntlr.onlineHelpLoad);
 actionCreators.set(FieldGroupCntlr.VALUE_CHANGE, FieldGroupCntlr.valueChangeActionCreator);
 actionCreators.set(ExternalAccessCntlr.EXTENSION_ACTIVATE, ExternalAccessCntlr.extensionActivateActionCreator);
-actionCreators.set(ImagePlotCntlr.PLOT_IMAGE, ImagePlotCntlr.plotImageActionCreator);
-actionCreators.set(ImagePlotCntlr.ZOOM_IMAGE, ImagePlotCntlr.zoomActionCreator);
+actionCreators.set(ImagePlotCntlr.PLOT_IMAGE, plotImageActionCreator);
+actionCreators.set(ImagePlotCntlr.ZOOM_IMAGE, zoomActionCreator);
+actionCreators.set(ImagePlotCntlr.COLOR_CHANGE, colorChangeActionCreator);
+actionCreators.set(ImagePlotCntlr.STRETCH_CHANGE, stretchChangeActionCreator);
+actionCreators.set(ImagePlotCntlr.ROTATE, rotateActionCreator);
+actionCreators.set(ImagePlotCntlr.FLIP, flipActionCreator);
+actionCreators.set(ImagePlotCntlr.CROP, cropActionCreator);
+actionCreators.set(ImagePlotCntlr.CHANGE_POINT_SELECTION, changePointSelectionActionCreator);
+actionCreators.set(ImagePlotCntlr.EXPANDED_AUTO_PLAY, autoPlayActionCreator);
+actionCreators.set(DrawLayerCntlr.DETACH_LAYER_FROM_PLOT, makeDetachLayerActionCreator(drawLayerFactory));
 
-actionCreators.set(HistogramCntlr.LOAD_TBL_STATS, HistogramCntlr.loadTblStats);
+actionCreators.set(TablesCntlr.TABLE_FETCH, TablesCntlr.fetchTable);
+actionCreators.set(TablesCntlr.TABLE_FETCH_UPDATE, TablesCntlr.fetchTable);
+actionCreators.set(TablesCntlr.TABLE_HIGHLIGHT, TablesCntlr.highlightRow);
+
+actionCreators.set(TableStatsCntlr.LOAD_TBL_STATS, TableStatsCntlr.loadTblStats);
 actionCreators.set(HistogramCntlr.LOAD_COL_DATA, HistogramCntlr.loadColData);
+actionCreators.set(XYPlotCntlr.LOAD_PLOT_DATA, XYPlotCntlr.loadPlotData);
+
+
+
+
+
 
 /**
  * object with a key that can be filtered out, value should be a boolean or a function that returns a boolean
@@ -144,6 +196,7 @@ function process(rawAction, condition) {
     if (!redux) throw Error('firefly has not been bootstrapped');
 
     var ac = actionCreators.get(rawAction.type);
+    if (!rawAction.payload) rawAction= Object.assign({},rawAction,{payload:{}});
     if (ac) {
         redux.dispatch(ac(rawAction));
     } else {
@@ -175,8 +228,10 @@ function addListener(listener, ...types) {
     }
 }
 
-function registerCreator(type, actionCreator) {
-    actionCreators.set(type, actionCreator);
+function registerCreator(actionCreator, ...types) {
+    if (types) {
+        types.forEach( (v) => actionCreators.set(v, actionCreator) );
+    }
 }
 
 function registerReducer(dataRoot, reducer) {
@@ -191,10 +246,20 @@ function getState() {
 function createSmartComponent(connector, component) {
     var Wrapper = connect(connector)(component);
     return (
-        <Provider store={redux}>
-            {() => <Wrapper/>}
-        </Provider>
+        <Provider store={redux}><Wrapper/></Provider>
     );
+}
+
+function getDrawLayerFactory() {
+    return drawLayerFactory;
+}
+
+function registerDrawLayer(factoryDef) {
+    drawLayerFactory.register(factoryDef);
+}
+
+function createDrawLayer(drawLayerTypeId, params) {
+    return drawLayerFactory.create(drawLayerTypeId,params);
 }
 
 
@@ -205,6 +270,9 @@ export var reduxFlux = {
     getState,
     process,
     addListener,
-    createSmartComponent
+    createSmartComponent,
+    registerDrawLayer,
+    createDrawLayer,
+    getDrawLayerFactory
 };
 

@@ -2,24 +2,20 @@
  * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
 
-import Cntlr from '../ImagePlotCntlr.js';
-import PlotView from './PlotView.js';
-import WebPlot from '../WebPlot.js';
+import Cntlr, {ExpandType} from '../ImagePlotCntlr.js';
+import PlotView, {makePlotView} from './PlotView.js';
 import PlotGroup from '../PlotGroup.js';
-import PlotViewUtil from '../PlotViewUtil.js';
 
 
 //============ EXPORTS ===========
 //============ EXPORTS ===========
 
-export default {
-    reducer
-};
 
 
+const clone = (obj,params={}) => Object.assign({},obj,params);
 
 
-function reducer(state, action) {
+export function reducer(state, action) {
 
     var retState= state;
     var plotViewAry;
@@ -35,15 +31,31 @@ function reducer(state, action) {
         case Cntlr.PLOT_IMAGE_FAIL  :
             break;
         case Cntlr.PLOT_IMAGE  :
-            plotViewAry= addPlot(state.plotViewAry,action);
+            plotViewAry= addPlot(state,action);
             activePlotId= action.payload.plotId;
             // todo: also process adding to history
+            break;
+        case Cntlr.ROTATE_START  :
+        case Cntlr.ROTATE_FAIL  :
+        case Cntlr.FLIP_START:
+        case Cntlr.FLIP_FAIL:
+        case Cntlr.CROP_START:
+        case Cntlr.CROP_FAIL:
+            break;
+        case Cntlr.ROTATE  :
+            plotViewAry= addPlot(state,action);
+            break;
+        case Cntlr.FLIP:
+            plotViewAry= addPlot(state,action);
+            break;
+        case Cntlr.CROP: //todo- crop
+            plotViewAry= addPlot(state,action);
             break;
         default:
             break;
     }
     if (plotGroupAry || plotViewAry || plotRequestDefaults) {
-        retState= Object.assign({},state, {activePlotId});
+        retState= clone(state, {activePlotId});
         if (plotViewAry) retState.plotViewAry= plotViewAry;
         if (plotGroupAry) retState.plotGroupAry= plotGroupAry;
         if (plotRequestDefaults) retState.plotRequestDefaults= plotRequestDefaults;
@@ -54,23 +66,23 @@ function reducer(state, action) {
 
 
 const updateDefaults= function(plotRequestDefaults, action) {
-    var retDef;
     var {plotId,wpRequest,redReq,greenReq, blueReq,threeColor}= action.payload;
-    if (threeColor) {
-        retDef= Object.assign({}, plotRequestDefaults, {[plotId]:{threeColor,redReq,greenReq, blueReq}});
-    }
-    else {
-        retDef= Object.assign({}, plotRequestDefaults, {[plotId]:{threeColor,wpRequest}});
-    }
-    return retDef;
+    return threeColor ?
+        clone(plotRequestDefaults, {[plotId]:{threeColor,redReq,greenReq, blueReq}}) :
+        clone(plotRequestDefaults, {[plotId]:{threeColor,wpRequest}});
 };
 
-const addPlot= function(plotViewAry,action) {
-    const {plotId, plotAry}= action.payload;
+const addPlot= function(state,action) {
+    var {plotViewAry}= state;
+    const {plotId, plotAry, overlayPlotViews}= action.payload;
+    var expanded= state.expandedMode!==ExpandType.COLLAPSE;
     return plotViewAry.map( (pv) => {
-        return pv.plotId===plotId ? PlotView.replacePlots(pv,plotAry) : pv;
+        return pv.plotId===plotId ? PlotView.replacePlots(pv,plotAry,expanded, overlayPlotViews) : pv;
     });
 };
+
+
+
 
 /**
  /**
@@ -83,9 +95,7 @@ function confirmPlotView(plotViewAry,action) {
     const {plotId}= action.payload;
     if (pvExist(plotId,plotViewAry)) return null;
 
-    const payload= action.payload;
-    var rKey= ['wpRequest','redReq','blueReq','greenReq'].find( (key) => payload[key] ? true : false);
-    var pv= PlotView.makePlotView(plotId, payload[rKey] );
+    var pv= makePlotView(plotId, getDefRequest(action.payload),null);
     return [...plotViewAry,pv];
 }
 
@@ -112,4 +122,8 @@ function plotGroupExist(plotGroupId, plotGroupAry) {
 }
 
 
+function getDefRequest(obj) {
+    var rKey= ['wpRequest','redReq','blueReq','greenReq'].find( (key) => obj[key] ? true : false);
+    return rKey ? obj[rKey] : null;
+}
 

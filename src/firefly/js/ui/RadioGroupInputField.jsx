@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {PropTypes}  from 'react';
 import PureRenderMixin from 'react-addons-pure-render-mixin';
 import FieldGroupToStoreMixin from '../fieldGroup/FieldGroupToStoreMixin.js';
 
@@ -9,9 +9,15 @@ var RadioGroupInputField= React.createClass(
         mixins: [PureRenderMixin, FieldGroupToStoreMixin],
 
         propTypes: {
-            options: React.PropTypes.array.isRequired,
+            inline : PropTypes.bool,
+            options: PropTypes.array.isRequired,
+            alignment:  PropTypes.string,
+            labelWidth : PropTypes.number
         },
 
+        contextTypes: {
+            groupKey: React.PropTypes.string
+        },
 
         componentWillMount() {
             // if no default value is specified, select the first option
@@ -35,33 +41,35 @@ var RadioGroupInputField= React.createClass(
         },
 
         render() {
+
+            const {alignment, labelWidth, fieldKey} = this.props;
+
             return (
-                <div style={{whiteSpace:'nowrap'}}>
-                    <InputFieldLabel label={this.getLabel()}
-                        tooltip={this.getTip()}
-                        labelWidth={this.props.labelWidth}
-                    />
-                    {this.props.options.map((option) => {
-                        var alignment = typeof option.align=='undefined'? 'horizontal':option.align;//this is added by LZ
-                        return (
+                <div style={{whiteSpace:'nowrap',display: this.props.inline?'inline-block':'block'}}>
 
-                        <div key={option.value} style={{display:'inline-block'}}>
-                            <input type='radio'
-                                align={alignment }//this is added by LZ
-                                name={this.props.fieldKey}
-                                value={option.value}
-                                defaultChecked={this.getValue()===option.value}
-                                onChange={this.onChange}
-                            />&nbsp;{option.label}&nbsp;&nbsp;
-                        </div>
+                    {this.getLabel() ? <InputFieldLabel label={this.getLabel()}
+                                                        tooltip={this.getTip()}
+                                                        labelWidth={labelWidth} /> : null
+                        }
+                    <div style={{display:'inline-block'}} >
+                        {this.props.options.map((option) => {
 
-                        );
+                            return (
+                                <div
+                                    style={alignment==='vertical' ? {display:'block'}:{display:'inline-block'}}
+                                    key={option.value}>
+                                    <input type='radio'
+                                           name={fieldKey}
+                                           value={option.value}
+                                           defaultChecked={this.getValue()===option.value}
+                                           onChange={this.onChange}
+                                    /> {option.label}&nbsp;&nbsp;
+                                </div>);
                         })}
-                  </div>
+                    </div>
+                </div>
             );
         }
-
-
     });
 
 export default RadioGroupInputField;

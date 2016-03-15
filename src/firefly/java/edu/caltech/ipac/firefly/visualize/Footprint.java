@@ -1,9 +1,6 @@
 /*
  * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
  */
-/*
- * License information at https://github.com/Caltech-IPAC/firefly/blob/master/License.txt
- */
 package edu.caltech.ipac.firefly.visualize;
 
 import edu.caltech.ipac.firefly.ui.GwtUtil;
@@ -302,7 +299,7 @@ public class Footprint extends CircularMarker {
 
 	// @Override
 	// public boolean contains(ScreenPt pt, WebPlot plot) {
-	// // check if point is in footprint shapse
+	// // check if point is in footprint shape
 	// //don't want to be selected if inside the gre
 	//// if(super.contains(pt, plot)){
 	//// return true;

@@ -13,8 +13,8 @@ import AppDataCntlr from '../core/AppDataCntlr.js';
 function validUpdate(valid,onSuccess,onFail,groupKey,dialogId) {
     var funcToCall = valid ? onSuccess : onFail;
 
-    if (valid && dialogId) AppDataCntlr.hideDialog(dialogId);
-
+    // -lly : if there is more than one groupkey, it should combine the field values into a single request not
+    // create an array of requests.  this is my opinion atm.  remove this comment once this is resolved.
     if (Array.isArray(groupKey)) {
         var requestAry = groupKey.map( (key) => FieldGroupUtils.getResults(key));
         funcToCall(requestAry);
@@ -23,11 +23,15 @@ function validUpdate(valid,onSuccess,onFail,groupKey,dialogId) {
         var request = FieldGroupUtils.getResults(groupKey);
         funcToCall(request);
     }
+
+    if (valid && dialogId) AppDataCntlr.hideDialog(dialogId);
 }
 
 function onClick(onSuccess,onFail,groupKey,dialogId) {
     if (groupKey) {
-        FieldGroupUtils.validate(groupKey, (valid) => validUpdate(valid,onSuccess,onFail,groupKey,dialogId));
+        FieldGroupUtils.validate(groupKey, (valid) => {
+            validUpdate(valid,onSuccess,onFail,groupKey,dialogId);
+        });
     }
     else {
         if (onSuccess) onSuccess();
@@ -37,10 +41,11 @@ function onClick(onSuccess,onFail,groupKey,dialogId) {
 
 
 
-function CompleteButton ({onFail, onSuccess, groupKey, text='OK', closeOnValid=true, dialogId,}) {
+function CompleteButton ({onFail, onSuccess, groupKey=null, text='OK', closeOnValid=true, dialogId,style={}}, context) {
+    if (!groupKey && context) groupKey= context.groupKey;
     return (
-        <div>
-            <button type='button' onClick={() => onClick(onSuccess,onFail,groupKey,dialogId)}>{text}</button>
+        <div style={style}>
+            <button type='button' className='button-hl'  onClick={() => onClick(onSuccess,onFail,groupKey,dialogId)}><b>{text}</b></button>
         </div>
     );
 }
@@ -49,10 +54,11 @@ function CompleteButton ({onFail, onSuccess, groupKey, text='OK', closeOnValid=t
 CompleteButton.propTypes= {
     onFail: React.PropTypes.func,
     onSuccess: React.PropTypes.func,
-    groupKey: React.PropTypes.any,
+    groupKey: React.PropTypes.string,
     text: React.PropTypes.string,
     closeOnValid: React.PropTypes.bool,
-    dialogId: React.PropTypes.string
+    dialogId: React.PropTypes.string,
+    style: React.PropTypes.object
 };
 
 CompleteButton.contextTypes= {

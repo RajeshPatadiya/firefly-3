@@ -43,6 +43,14 @@ public class TableDef {
         return attributes;
     }
 
+    public void setAttribute(String name, String value) {
+        DataGroup.Attribute att = getAttribute(name);
+        if (att != null) {
+            attributes.remove(att);
+        }
+        attributes.add(new DataGroup.Attribute(name, value));
+    }
+
     public void setStatus(DataGroupPart.State status) {
         addAttributes(new DataGroup.Attribute(DataGroupPart.LOADING_STATUS, status.name()));
     }
@@ -54,13 +62,17 @@ public class TableDef {
         return null;
     }
 
-    public DataGroupPart.State getStatus() {
+    public void ensureStatus() {
         DataGroup.Attribute a = getAttribute(DataGroupPart.LOADING_STATUS);
-        if (a != null && !StringUtils.isEmpty(a.getValue())) {
-            return DataGroupPart.State.valueOf(String.valueOf(a.getValue()));
-        } else {
-            return DataGroupPart.State.COMPLETED;
+        if (a == null || StringUtils.isEmpty(a.getValue())) {
+            setStatus(DataGroupPart.State.COMPLETED);
         }
+    }
+
+    public DataGroupPart.State getStatus() {
+        ensureStatus();
+        DataGroup.Attribute a = getAttribute(DataGroupPart.LOADING_STATUS);
+        return DataGroupPart.State.valueOf(String.valueOf(a.getValue()));
     }
 
     public int getLineSepLength() {

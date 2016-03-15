@@ -1,0 +1,293 @@
+/** The are the colors we used.  Currently was are not using a css preprocessor
+    so they are just here for reference
+@def bodyColor            #f3f3f3;
+@def borderColor          #a3aeb9;
+@def markedColor          #49a344;
+@def highlightColor       #005da4;
+@def alternateColor       #a67e45;
+@def tabsColor            #808080;
+@def popupBackgroundColor #EFEFEF;
+@def titleBackgroundColor #375885;
+@def selectedColor        #d3fad1;
+@def whiteColor           white;
+@def blackColor           black;
+@def alertColor           red;
+@def cautionColor         #ffe8e8;
+@def cautionSelectedColor #ffc1c1;
+@def relatedColor         #eeffed;
+@def relatedCcautionColor #ffdddd;
+@def focusPanelColor      #e3e3e3;
+@def toolbarButtonColor   #bcc8cf;
+@def toolbarGroupColor    rgba(0,0,0,.51);
+*/
+
+
+body {
+    background-color: #e3e3e3;
+    padding: 0 1px 0 1px;
+    border:0 none;
+    font-family: tahoma,arial,helvetica,sans-serif;
+    font-size: 11px;
+}
+
+img, html {
+    border:0 none;
+}
+
+
+#App {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    min-height: 400px;
+    margin: 0;
+    padding: 0;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-flex-flow: column;
+    -ms-flex-flow: column;
+    flex-flow: column;
+}
+
+#App > main {
+    display: flex;
+    margin: 4px;
+    padding: 5px;
+    -webkit-flex: auto;
+    -ms-flex: auto;
+    flex: auto;
+    -webkit-order: 2;
+    -ms-flex-order: 2;
+    order: 2;
+}
+#App > header {
+    -webkit-order: 1;
+    -ms-flex-order: 1;
+    order: 1;
+}
+
+#App > footer {
+    padding: 5px;
+    border: 1px solid #8888bb;
+    background: #ccccff;
+    -webkit-order: 3;
+    -ms-flex-order: 3;
+    order: 3;
+}
+
+.button-std {
+    height: 23px;
+    padding: 0 3px;
+}
+
+.button-hl {
+    font-weight: bold;
+    height: 23px;
+    padding: 0 3px;
+}
+
+.button-std:hover, .button-hl:hover {
+    cursor: pointer;
+}
+
+
+.ff-href {
+    color: #005da4; /*highlightColor*/
+    font-family: tahoma,arial,helvetica,sans-serif;
+    font-style: italic;
+    cursor: pointer;
+}
+
+.ff-href:hover {
+    color: #49a344; /*markedColor*/
+}
+
+.disable-select {
+    -moz-user-select : none;
+    -khtml-user-select : none;
+    -webkit-user-select : none;
+    -o-user-select :  none;
+    user-select :  none;
+}
+
+.title-color { color : white; } /*whiteColor*/
+
+.title-label  {
+    font-style: italic;
+    font-weight: bold;
+}
+.title-bar{
+    font-weight : bold;
+    font-size: 11px;
+    padding: 2px 0 3px 0;
+    margin-bottom: 1px;
+    white-space: nowrap;
+}
+
+.standard-border { border: solid #a3aeb9 1px; } /*borderColor */
+
+/* react-split-pane style <BEGIN> */
+.Pane.vertical, .Pane.horizontal {
+    display: flex;
+}
+
+.Pane.vertical .content, .Pane.horizontal  .content{
+    flex: auto;
+    display: flex;
+    overflow: hidden;
+    margin: 5px;
+}
+
+.Pane.vertical .wrapper, .Pane.horizontal .wrapper{
+    flex: auto;
+    display: flex;
+    overflow: hidden;
+    border: 1px solid #a3aeb9;
+    border-radius: 5px;
+    margin: 3px;
+}
+
+.Resizer {
+    /*background: #000;*/
+    /*opacity: .2;*/
+    z-index: 1;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -moz-background-clip: padding;
+    -webkit-background-clip: padding;
+    background-clip: padding-box;
+    border-radius: 4px;
+}
+
+.Resizer:hover {
+    -webkit-transition: all 2s ease;
+    transition: all 2s ease;
+}
+
+.Resizer.horizontal {
+    height: 9px;
+    margin: -4px 0;
+    border-top: 4px solid rgba(255, 255, 255, 0);
+    border-bottom: 4px solid rgba(255, 255, 255, 0);
+    cursor: row-resize;
+    width: 100%;
+}
+
+.Resizer.horizontal:hover {
+    border-top: 4px solid rgba(0, 0, 0, 0.5);
+    border-bottom: 4px solid rgba(0, 0, 0, 0.5);
+}
+
+.Resizer.vertical {
+    width: 9px;
+    margin: 0 -4px;
+    border-left: 4px solid rgba(255, 255, 255, 0);
+    border-right: 4px solid rgba(255, 255, 255, 0);
+    cursor: col-resize;
+    height: 100%;
+}
+
+.Resizer.vertical:hover {
+    border-left: 4px solid rgba(0, 0, 0, 0.5);
+    border-right: 4px solid rgba(0, 0, 0, 0.5);
+}
+/* react-split-pane style <END> */
+
+[role="toolbar"] {
+    display: flex;
+    justify-content: space-between;
+    height:30px;
+}
+
+[role="toolbar"] .group {
+    background-color: #a5a5a5;
+    display: flex;
+    align-items: center;
+}
+
+[role="toolbar"] button {
+    width: 24px;
+    height: 24px;
+    border: none;
+    font-size: 12px;
+    color: white;
+    padding: 0;
+    border-radius: 2px;
+    background: none;
+}
+
+[role="toolbar"] button:active {
+    background-color: #ffffff;
+}
+
+[role="toolbar"] button:hover {
+    background-color: #949494;
+    cursor: pointer;
+}
+
+.btn-close {
+    color: #666;
+    font-size: 10px;
+    display: inline-block;
+    position: relative;
+    text-shadow: 0 1px 0 #fff;
+    width: 12px;
+    height: 14px;
+}
+.btn-close:hover {
+    background-color: #949494;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.btn-close:after {
+    content: '×'; /* UTF-8 symbol */
+}
+
+/*------------------- loading mask ---------------------*/
+.loading-mask {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.loading-mask::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+@-webkit-keyframes spin {
+    from { transform: rotate(0deg);}
+    to {transform: rotate(359deg);}
+}
+@keyframes spin {
+    from { transform: rotate(0deg);}
+    to {transform: rotate(359deg);}
+}
+
+.loading-mask::after {
+    content: "";
+    position: absolute;
+    border-width: 3px;
+    border-style: solid;
+    border-color: transparent rgb(255, 255, 255) rgb(255, 255, 255);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    top: calc(50% - 12px);
+    left: calc(50% - 12px);
+    animation-name: spin;
+    animation-duration: 2s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    filter: drop-shadow(0 0 2 rgba(0, 0, 0, 0.33));
+}
+/*------------------- loading mask ---------------------*/

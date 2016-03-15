@@ -123,11 +123,11 @@ public class FootprintFactory  {
 
         // Spitzer IRAC3.6/5.8um; FOV data are from SPOT Spitzer focal plane overlay SPOT when the telescope center is at (0, 0):
         IRAC36(FOOTPRINT.SPITZER,
-                "POLYGON 359.98239  -0.00474  359.89576  -0.00408  359.89513  -0.09074  359.98176  -0.09140 "),
+                "POLYGON 359.8950833  -0.090683333 359.9817333  -0.091333333  359.9823833  -0.004666667  359.8957167  -0.004016667  "),
 
         // Spitzer IRAC4.5/8.0um; FOV data are from Spitzer focal plane overlay in SPOT when the telescope center is at (0, 0):
         IRAC45(FOOTPRINT.SPITZER,
-                "POLYGON 0.09444  -0.00272  0.00778  -0.00215  0.00725  -0.08881  0.09393  -0.08938 ") ;
+                "POLYGON 359.8950833  -0.090683333   359.9817333  -0.091333333  359.9823833  -0.004666667  359.8957167  -0.004016667  ") ;
 		
 		private String stc;
 		private FOOTPRINT mission;

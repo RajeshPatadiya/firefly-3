@@ -29,6 +29,7 @@ ext {
               ':servlet-api',
               ':websocket-api']
 
+  derby_lib = ':derby'
   mysql_lib = ':mysql-connector-java-5.1.6-bin'
   starlink_lib = [':rayreg', ':regclient', ':stil']
   xbeanfinder_lib = [':xbean-finder-4.1', ':asm-5.0.3']
@@ -88,6 +89,7 @@ repositories {
           "$libPath/josso",
           "$libPath/json",
           "$libPath/log4j",
+          "$libPath/db",
           "$libPath/mysql",
           "$libPath/sdss",
           "$libPath/spring",

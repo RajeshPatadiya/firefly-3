@@ -12,6 +12,14 @@ BuildDate=@build_time@
 #==========================================================
 
 
+application.use.connection.pool=true
+application.connection.datasource=jdbc/Application
+application.db.driver=org.apache.derby.jdbc.EmbeddedDriver
+application.db.url=@application.db.url@
+application.db.userId=@application.db.userId@
+application.db.password=@application.db.password@
+
+
 # a directory for storing intermediate files
 # default to System.getProperty("java.io.tmpdir") + "/workarea"
 work.directory=@work.directory@

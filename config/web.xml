@@ -90,11 +90,27 @@
     </servlet-mapping>
 
 
+    <servlet>
+        <servlet-name>H2Console</servlet-name>
+        <servlet-class>org.h2.server.web.WebServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>H2Console</servlet-name>
+        <url-pattern>/admin/db/*</url-pattern>
+    </servlet-mapping>
 <!--    Resources                         -->
 
     <resource-ref>
         <description>Operation Datasource</description>
         <res-ref-name>jdbc/Operation</res-ref-name>
+        <res-type>javax.sql.DataSource</res-type>
+        <res-auth>Container</res-auth>
+    </resource-ref>
+
+    <resource-ref>
+        <description>Application Datasource</description>
+        <res-ref-name>jdbc/Application</res-ref-name>
         <res-type>javax.sql.DataSource</res-type>
         <res-auth>Container</res-auth>
     </resource-ref>

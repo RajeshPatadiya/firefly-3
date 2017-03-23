@@ -35,7 +35,6 @@ export const SearchPanel = (props) => {
                                      groupKey='TBL_BY_URL_PANEL'
                                      initialState= {{
                                                                 value: 'http://web.ipac.caltech.edu/staff/roby/demo/WiseDemoTable.tbl',
-                                                                validator: Validate.validateUrl.bind(null, 'Source Table'),
                                                                 tooltip: 'The URL to the source table',
                                                                 label : 'Source Table:',
                                                                 labelWidth : 120
@@ -99,7 +98,7 @@ function onSearchSubmit(request) {
         const treq = TblUtil.makeFileRequest(null, request.fileUpload, null, {...request});
         dispatchTableSearch(treq);
     } else if (request.srcTable) {
-        const treq = TblUtil.makeFileRequest(null, request.srcTable, null, {filters: request.filters});
+        const treq = TblUtil.makeTblRequest('DbDemoProcessor', null, {source:request.srcTable}, {filters: request.filters});
         dispatchTableSearch(treq);
     }
 }

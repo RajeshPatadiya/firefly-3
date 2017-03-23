@@ -10,6 +10,7 @@ import edu.caltech.ipac.util.AppProperties;
  * @version $Id: DbInstance.java,v 1.3 2012/03/15 20:35:40 loi Exp $
  */
 public class DbInstance {
+    public static final DbInstance application = new DbInstance("application");
     public static final DbInstance archive = new DbInstance("archive");
     public static final DbInstance operation = new DbInstance("operation");
     public static final DbInstance josso = new DbInstance("josso");

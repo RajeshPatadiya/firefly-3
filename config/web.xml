@@ -100,6 +100,13 @@
     </resource-ref>
 
     <resource-ref>
+        <description>Application Datasource</description>
+        <res-ref-name>jdbc/Application</res-ref-name>
+        <res-type>javax.sql.DataSource</res-type>
+        <res-auth>Container</res-auth>
+    </resource-ref>
+
+    <resource-ref>
         <description>Mail Session</description>
         <res-ref-name>MailSession</res-ref-name>
         <res-type>javax.mail.Session</res-type>

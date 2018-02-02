@@ -278,7 +278,6 @@ export class VisToolbarView extends PureComponent {
                 <SimpleLayerOnOffButton plotView={pv}
                                         typeId={WebGrid.TYPE_ID}
                                         tip='Add grid layer to the image'
-                                        todo={hips}
                                         iconOn={GRID_ON}
                                         iconOff={GRID_OFF}
                                         visible={mi.grid}

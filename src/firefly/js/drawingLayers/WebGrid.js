@@ -97,11 +97,12 @@ function getDrawData(dataType, plotId, drawLayer, action, lastDataRet){
   */
  function getLayerChanges(drawLayer, action) {
      let drawData;
+     const idArry = action.payload.plotIdAry?action.payload.plotIdAry:[action.payload.plotId];
      switch (action.type){
          case ImagePlotCntlr.ANY_REPLOT:
-             if (drawLayer.drawData.data && action.payload.plotIdAry) {
+             if (drawLayer.drawData.data &&idArry) {
                  const data= clone(drawLayer.drawData.data);
-                 action.payload.plotIdAry.forEach( (plotId) => data[plotId]= null);
+                 idArry.forEach( (plotId) => data[plotId]= null);
                  drawData= clone(drawLayer.drawData, {data});
                  return {drawData};
              }

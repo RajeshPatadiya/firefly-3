@@ -306,12 +306,12 @@ function SelectArchive({groupKey,  imageMasterData, multiSelect}) {
                                      initialState={{
                                              unit: 'arcsec',
                                              labelWidth : 0,
-                                             nullAllowed: false,
+                                             nullAllowed: true,
                                              value: (500/3600)+'',
                                              min: 1 / 3600,
                                              max: 1,
                                          }}
-                                     label={'Cutout size:'}
+                                     label={'Cutout size (leave blank for full images):'}
                     />
                 </div>
             </div>

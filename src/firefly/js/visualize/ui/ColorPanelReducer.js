@@ -7,10 +7,10 @@ import FieldGroupCntlr, {INIT_FIELD_GROUP} from '../../fieldGroup/FieldGroupCntl
 import ImagePlotCntlr from '../ImagePlotCntlr.js';
 import {visRoot} from '../ImagePlotCntlr.js';
 import {primePlot} from '../PlotViewUtil.js';
+import {clone} from '../../util/WebUtil.js';
 import RangeValues, {STRETCH_LINEAR, PERCENTAGE, ABSOLUTE,SIGMA,ZSCALE, STRETCH_ASINH} from './../RangeValues.js';
 
 
-const clone = (obj,params={}) => Object.assign({},obj,params);
 const cloneWithValue= (field,v) => Object.assign({}, field, {value:v});
 
 
@@ -23,6 +23,7 @@ export const NO_BAND_PANEL= 'nobandPanel';
 
 /**
  * Reducer entry point. This function returns a reducer initialized to work with the passed band.
+ * @param {Band} band
  * @return a reducer function. a standard type reducer function.
  */
 export const colorPanelChange= function(band) {
@@ -108,8 +109,8 @@ function syncFields(fields,rv,fitsData) {
  * @param {WebFitsData} fitsData
 */
 const computeLowerRangeField= function (fields,rv,fitsData) {
-    var resetDefault= (fields.lowerWhich.value!==rv.lowerWhich);
-    var retval;
+    const resetDefault= (fields.lowerWhich.value!==rv.lowerWhich);
+    let retval;
     switch (rv.lowerWhich) {
         case PERCENTAGE:
         default :
@@ -215,7 +216,7 @@ const updateFieldsFromRangeValues= function(fields,rv, fitsData) {
  * defines fields
  * @return {{lowerRange: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, upperRange: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, zscaleContrast: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, zscaleSamples: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, zscaleSamplesPerLine: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, beta: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, gamma: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, BP: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, WP: {fieldKey: string, value: string, validator: (function(this:null)), tooltip: string, label: string}, algorithm: {tooltip: string, label: string, value}, lowerWhich: {tooltip: string, label: string, value}, upperWhich: {tooltip: string, label: string, value}, zscale: {value: string, tooltip: string, label: string}}}
  */
-var getFieldInit= function() {
+const getFieldInit= function() {
 
     return {
         lowerRange: {

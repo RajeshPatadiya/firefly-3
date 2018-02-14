@@ -1,53 +1,26 @@
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, {PureComponent} from 'react';
+import {bool, array, string, number, object} from 'prop-types';
 import {isEmpty, isUndefined, get}  from 'lodash';
 import {RadioGroupInputFieldView} from './RadioGroupInputFieldView.jsx';
-import {fieldGroupConnector} from './FieldGroupConnector.jsx';
+import {FieldGroupEnable} from './FieldGroupEnable.jsx';
 
 
-const convertValue= (value,options,defaultValue) => {
-    if (!value) {
-        return isUndefined(defaultValue) ? options[0].value : defaultValue;
-    } else {
-        return value;
-    }
+const assureValue= (value,options,defaultValue) => {
+    if (value) return value;
+    return isUndefined(defaultValue) ? options[0].value : defaultValue;
 };
 
-function getProps(params, fireValueChange) {
-
-    var {value,options,defaultValue}= params;
-    value= convertValue(value,options,defaultValue);
-
-    return Object.assign({}, params,
-        {
-            value,
-            onChange: (ev) => handleOnChange(ev,params, fireValueChange)
-        });
-}
-
 function handleOnChange(ev, params, fireValueChange) {
-    var val = get(ev, 'target.value', '');
-    var checked = get(ev, 'target.checked', false);
-
+    const val = get(ev, 'target.value', '');
+    const checked = get(ev, 'target.checked', false);
     if (checked) {
         fireValueChange({ value: val, valid: true});
     }
 }
 
-
-const propTypes= {
-    inline : PropTypes.bool,
-    options: PropTypes.array.isRequired,
-    defaultValue: PropTypes.string,
-    alignment:  PropTypes.string,
-    labelWidth : PropTypes.number,
-    labelStyle: PropTypes.object,
-    isGrouped: PropTypes.bool
-};
-
 function checkForUndefined(v,props) {
     const {options, defaultValue, isGrouped=false} = props;
-    var optionContain = (v) => v && options.find((op) => op.value === v);
+    const optionContain = (v) => v && options.find((op) => op.value === v);
     if (isEmpty(options) || optionContain(v) || isGrouped) {
         return v;
     } else {
@@ -55,7 +28,40 @@ function checkForUndefined(v,props) {
     }
 }
 
+export class RadioGroupInputField extends PureComponent {
 
-export const RadioGroupInputField= fieldGroupConnector(RadioGroupInputFieldView,
-    getProps,propTypes,null,checkForUndefined);
+    render()  {
+        const {fieldKey, initialState, forceReinit, options, isGrouped, defaultValue}= this.props;
+        return (
+            <FieldGroupEnable fieldKey={fieldKey} initialState={initialState}
+                              forceReinit={forceReinit} options={options}
+                              isGrouped={isGrouped} defaultValue={defaultValue}
+                              confirmInitialValue={checkForUndefined}>
+                {
+                    (propsFromStore, fireValueChange) => {
+                        const {options, defaultValue}= propsFromStore;
+                        const value= assureValue(propsFromStore.value,options, defaultValue);
+                        const newProps= Object.assign({}, this.props, propsFromStore, { value});
+                        return <RadioGroupInputFieldView {...newProps}
+                                           onChange={(ev) => handleOnChange(ev,propsFromStore, fireValueChange)}/> ;
+                    }
+                }
+            </FieldGroupEnable>
+        );
 
+    }
+}
+
+
+RadioGroupInputField.propTypes= {
+    inline : bool,
+    options: array.isRequired,
+    defaultValue: string,
+    alignment:  string,
+    labelWidth : number,
+    labelStyle: object,
+    isGrouped: bool,
+    initialState:  object,
+    forceReinit:  bool,
+    fieldKey:   string
+};

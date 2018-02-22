@@ -72,7 +72,10 @@ export function makeGridDrawData (plot,  cc, useLabels, numOfGridLines=11){
         if (factor < 1.0) factor = 1.0;
         var range = plot.type==='hips'?getHipsRange(plot, cc): getRange(csys, width, height, cc);
 
-       // var bounds1 = plot.type==='hips'?getBound(plot,cc):new Rectangle(0, 0, width, height);
+
+        var bounds1 = plot.type==='hips'?getBound(plot,cc):new Rectangle(0, 0, width, height);
+
+        var hRange = getHRange(plot, csys, cc);
         const {xLines, yLines, labels} = computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, labelFormat);
         return  drawLines(bounds, labels, xLines, yLines, aitoff, screenWidth, useLabels, cc,plot.type);
 
@@ -149,9 +152,63 @@ function getBound(plot,cc, n=100){
    const maxLon = Math.max(pointUL.x, pointUR.x, pointLL.x, pointLR.x);
    const maxLat= Math.max(pointUL.y, pointUR.y, pointLL.y, pointLR.y);
 
+
+
   return new Rectangle(0, 0, maxLon, maxLat);
 }
 
+function getHRange(plot, csys,cc){
+
+    //TODO test this here
+    const {width, height} = plot.viewDim;
+    var wpt, ip, xy, cornerArry=[];
+
+   /* wpt = cc.getWorldCoords(makeDevicePt(0, 0), plot.imageCoordSys);
+    ip = cc.getImageWorkSpaceCoords(wpt);
+    if (ip) {
+        xy = makeImagePt(ip.x, ip.y);
+        cornerArry[0]=xy;
+
+    }
+
+    wpt = cc.getWorldCoords(makeDevicePt(0, width), plot.imageCoordSys);
+    ip = cc.getImageWorkSpaceCoords(wpt);
+    if (ip) {
+        xy = makeImagePt(ip.x, ip.y);
+        cornerArry[1]=xy;
+
+    }
+
+    wpt = cc.getWorldCoords(makeDevicePt(width, 0), plot.imageCoordSys);
+    ip = cc.getImageWorkSpaceCoords(wpt);
+    if (ip) {
+        xy = makeImagePt(ip.x, ip.y);
+        cornerArry[2]=xy;
+
+    }
+
+    wpt = cc.getWorldCoords(makeDevicePt(width, height), plot.imageCoordSys);
+    ip = cc.getImageWorkSpaceCoords(wpt);
+    if (ip) {
+        xy = makeImagePt(ip.x, ip.y);
+        cornerArry[2]=xy;
+
+    }
+
+    wpt = cc.getWorldCoords(makeDevicePt(0, height), plot.imageCoordSys);
+    ip = cc.getImageWorkSpaceCoords(wpt);
+    if (ip) {
+        xy = makeImagePt(ip.x, ip.y);
+        cornerArry[3]=xy;
+
+    }*/
+
+    const bound = getBound(plot,cc,100);
+    const w = bound.width; //cornerArry[1].x - cornerArry[0].x;
+    const h = bound.height;// cornerArry[2].y - cornerArry[1].y;
+    return getRange(csys, w, h, cc);
+
+}
 /**
  * For Image map, we use the data width (naxis1) or height(naxis2) to calculate the image ranges.
  * For HiPs map, the data width and data height are not from naxis1 and naxis2, thus the same way to calculate
@@ -971,10 +1028,13 @@ function drawLines(bounds, labels, xLines,yLines, aitoff,screenWidth, useLabels,
 
 function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, labelFormat) {
 
+
     var levelsCalcualted = getLevels(range, factor);
 
-    //regrid the levels if the line counts is less than 11, the default value
-    var levels = adjustLevels(levelsCalcualted, numOfGridLines);
+    //TODO test this here
+    //regrid the levels if the line counts is less than numOfGridLines only when the zoom=1,
+    // If the plot is zoomed out/in, the line count should be the calculaetd onces
+    var levels = factor!==1? adjustLevels(levelsCalcualted, numOfGridLines):levelsCalcualted;
 
     const labels = getLabels(levels, csys, labelFormat);
     /* This is where we do all the work. */

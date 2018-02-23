@@ -32,8 +32,6 @@ import ShapeDataObj from '../visualize/draw/ShapeDataObj.js';
 import CoordinateSys from '../visualize/CoordSys.js';
 import CoordUtil from '../visualize/CoordUtil.js';
 import numeral from 'numeral';
-import { computeDistance} from '../visualize/VisUtil.js';
-
 import { getDrawLayerParameters} from './WebGrid.js';
 
 
@@ -45,7 +43,8 @@ const maxUserDistance= 3.00;   // user defined min dist. (deg)
 var userDefinedDistance = false;
 import {Regrid} from '../util/Interp/Regrid.js';
 
-const regridedPointSize=100;
+const regridedPointSize=50;
+const angleStepForHipsMap=4.0;
 const allowExtrapolation=true;
 /**
  * This method does the calculation for drawing data array
@@ -70,12 +69,12 @@ export function makeGridDrawData (plot,  cc, useLabels, numOfGridLines=11){
         var factor =  plot.zoomFactor;
 
         if (factor < 1.0) factor = 1.0;
+
+
         var range = plot.type==='hips'?getHipsRange(plot, cc): getRange(csys, width, height, cc);
+        //var range = getHipsRangeByViewDim(plot, csys,  cc);
 
 
-        var bounds1 = plot.type==='hips'?getBound(plot,cc):new Rectangle(0, 0, width, height);
-
-        var hRange = getHRange(plot, csys, cc);
         const {xLines, yLines, labels} = computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, labelFormat);
         return  drawLines(bounds, labels, xLines, yLines, aitoff, screenWidth, useLabels, cc,plot.type);
 
@@ -83,132 +82,91 @@ export function makeGridDrawData (plot,  cc, useLabels, numOfGridLines=11){
     }
 }
 
-function findCorner(plot, cc, x0, y0, deltax, deltay, n=100){
-    var x, y;
-
-    var wpt, ip, count=0;
-    var xy=[];
-    var wpArr=[];
-    for (let i=0; i<n/2; i++) {
-        x = x0 + i * deltax;
-        for (let j = 0; j < n/2; j++) {
-            y = y0 + j * deltay;
-            wpt = cc.getWorldCoords(makeDevicePt(x, y), plot.imageCoordSys);
-            ip = cc.getImageWorkSpaceCoords(wpt);
-            if (ip) {
-                xy[count] = makeImagePt(ip.x, ip.y);
-                wpArr[count]=wpt;
-                count++;
-
-            }
-        }
-    }
-   // return xy;
-    return wpArr;
-}
-function getCornerWp(centerWp,corners, cc){
-
-    var wpArr=[];
-
-    for (let i=0; i<corners.length; i++){
-        wpArr[i]= computeDistance(centerWp, corners[i]);
-    }
-    const maxDist=Math.max(...wpArr);
-    const index = wpArr.indexOf(maxDist);
-    const wpt = corners[index];
-    const ip = cc.getImageWorkSpaceCoords(wpt);
-    return makeImagePt(ip.x, ip.y);;//corners[wpArr.indexOf(Math.max(...wpArr))];
-
-}
-
 /**
- * This method calculated the bounds using the viewDim.  However, the results is similar as the
- * default, so it is not used in this version.
+ * Tried to use the plotViewDim to calculate the ranges.  But for an unknown reason, the range is always tiny bit smaller than the
+ * real range.  Thus, the lines are not connected. 
  * @param plot
+ * @param csys
  * @param cc
- * @param n
- * @returns {Rectangle}
+ * @returns {[null,null]}
  */
-function getBound(plot,cc, n=100){
+function  getHipsRangeByViewDim(plot, csys,  cc) {
+
     const {width, height} = plot.viewDim;
-    //find the upper left corner
-    const {fov, centerWp}= getPointMaxSide(plot, plot.viewDim);
+    var  range = [[1.e20, -1.e20],[1.e20, -1.e20]];
+    var xmin=0;
+    var ymin=0;
+    var xmax= width;
+    var ymax= height;
+    var xdelta, ydelta, x, y;
+    var intervals= plot.type==='hips'?100:1;
 
-    const imagePt = cc.getImageCoords(centerWp);
+    // four corners.
+    // point a[xmin, ymax], the top left point, from here toward to right top point b[xmax, ymax], ie the line
+    //   a-b
+    y = ymax;
+    x = xmin;
+    xdelta = (width / intervals);// - 1; //define an interval of the point in line a-b
+    ydelta = 0; //no change in the y direction, so ydelta is 0, thus the points should be alone line a-b
+    edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
 
-    const cornerUpperLeft = findCorner(plot, cc, 0, 0, width/n,height/n, n);
-    const cornerUpperRight = findCorner(plot, cc, width, 0, -width/n,height/n, n);
+    // Bottom: right to left
+    y = ymin;
+    x = xmax;
+    xdelta = -xdelta;
+    edgeRun1(intervals, x, y, xdelta, ydelta, range, csys,  cc);
 
-    const cornerLowerLeft = findCorner(plot, cc, 0, height, width/n,-height/n, n);
-    const cornerLowerRight = findCorner(plot, cc, width, height, -width/n,-height/n, n);
+    // Left.  Bottom to top.
+    xdelta = 0;
+    ydelta = (height / intervals);// - 1;
+    y = ymin;
+    x = xmin;
+    edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
+
+    // Right. Top to bottom.
+    ydelta = -ydelta;
+    y = ymax;
+    x = xmax;
+    edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
+
+    // grid in the middle
+    xdelta = (width / intervals);// - 1;
+    ydelta = (height / intervals);// - 1;
+    x = xmin;
+    y = ymin;
+    edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
 
 
-    const pointUL = getCornerWp(centerWp,cornerUpperLeft, cc);
-    const pointUR = getCornerWp(centerWp,cornerUpperRight, cc);
-    const pointLL = getCornerWp(centerWp,cornerLowerLeft, cc);
-    const pointLR = getCornerWp(centerWp,cornerLowerRight,cc);
+    return range;
+}
+function edgeRun1(intervals, x, y, dx, dy, range, csys,cc){
 
+    var i=0, wpt;
+    var vals=[];
+    while (i <= intervals) {
 
-   const maxLon = Math.max(pointUL.x, pointUR.x, pointLL.x, pointLR.x);
-   const maxLat= Math.max(pointUL.y, pointUR.y, pointLL.y, pointLR.y);
+        wpt = cc.getWorldCoords(makeDevicePt(x, y), csys);
+        //look for lower and upper longitude and latitude
+        if (wpt) {
+            vals[0] = wpt.getLon();
+            vals[1] = wpt.getLat();
+            //assign the new lower and upper longitude if found
+            if (vals[0] < range[0][0]) range[0][0] = vals[0];
+            if (vals[0] > range[0][1]) range[0][1] = vals[0];
 
+            //assign the new lower and upper latitude if found
+            if (vals[1] < range[1][0]) range[1][0] = vals[1];
+            if (vals[1] > range[1][1]) range[1][1] = vals[1];
 
+        }
+        x += dx;
+        y += dy;
 
-  return new Rectangle(0, 0, maxLon, maxLat);
+        ++i;
+    }
 }
 
-function getHRange(plot, csys,cc){
 
-    //TODO test this here
-    const {width, height} = plot.viewDim;
-    var wpt, ip, xy, cornerArry=[];
-
-   /* wpt = cc.getWorldCoords(makeDevicePt(0, 0), plot.imageCoordSys);
-    ip = cc.getImageWorkSpaceCoords(wpt);
-    if (ip) {
-        xy = makeImagePt(ip.x, ip.y);
-        cornerArry[0]=xy;
-
-    }
-
-    wpt = cc.getWorldCoords(makeDevicePt(0, width), plot.imageCoordSys);
-    ip = cc.getImageWorkSpaceCoords(wpt);
-    if (ip) {
-        xy = makeImagePt(ip.x, ip.y);
-        cornerArry[1]=xy;
-
-    }
-
-    wpt = cc.getWorldCoords(makeDevicePt(width, 0), plot.imageCoordSys);
-    ip = cc.getImageWorkSpaceCoords(wpt);
-    if (ip) {
-        xy = makeImagePt(ip.x, ip.y);
-        cornerArry[2]=xy;
-
-    }
-
-    wpt = cc.getWorldCoords(makeDevicePt(width, height), plot.imageCoordSys);
-    ip = cc.getImageWorkSpaceCoords(wpt);
-    if (ip) {
-        xy = makeImagePt(ip.x, ip.y);
-        cornerArry[2]=xy;
-
-    }
-
-    wpt = cc.getWorldCoords(makeDevicePt(0, height), plot.imageCoordSys);
-    ip = cc.getImageWorkSpaceCoords(wpt);
-    if (ip) {
-        xy = makeImagePt(ip.x, ip.y);
-        cornerArry[3]=xy;
-
-    }*/
-
-    const bound = getBound(plot,cc,100);
-    const w = bound.width; //cornerArry[1].x - cornerArry[0].x;
-    const h = bound.height;// cornerArry[2].y - cornerArry[1].y;
-    return getRange(csys, w, h, cc);
-
-}
 /**
  * For Image map, we use the data width (naxis1) or height(naxis2) to calculate the image ranges.
  * For HiPs map, the data width and data height are not from naxis1 and naxis2, thus the same way to calculate
@@ -225,7 +183,7 @@ function getHRange(plot, csys,cc){
 function getHipsRange(plot, cc){
 
 
-    const {norder, useAllSky}= getBestHiPSlevel(plot, true);
+    const {norder}= getBestHiPSlevel(plot, true);
 
 
     const {fov, centerWp}= getPointMaxSide(plot, plot.viewDim);
@@ -236,8 +194,6 @@ function getHipsRange(plot, cc){
 
     else {
         const cells = getVisibleHiPSCells(norder, centerWp, fov, plot.dataCoordSys);
-
-        //const cells1= getVisibleHiPSCells(1,centerWp,fov, plot.dataCoordSys);
 
         const wpArray = [];
 
@@ -755,10 +711,10 @@ function findLine(cc,csys, direction, value, range, screenWidth){
     var intervals;
     var x, dx, y, dy;
 
-    const r=direction===0?range[1][1]-range[1][0]:range[0][1]-range[0][0];
+    const dLength=direction===0?range[1][1]-range[1][0]:range[0][1]-range[0][0];
 
 
-    const nInterval = r>1? parseInt(r/0.5):4;
+    const nInterval = dLength>angleStepForHipsMap? parseInt(dLength/angleStepForHipsMap):4;
     if (!direction )  {// X
         x  = value;
         dx = 0;
@@ -795,8 +751,8 @@ function findLine(cc,csys, direction, value, range, screenWidth){
 
     const points = fixPoints(npoints);
 
-    //regrid the points found to at least 100 points
-    return points.map( (point)=>{ if (point.length<100) {
+    //regrid the points found to at least 30 points
+    return points.map( (point)=>{ if (point.length<regridedPointSize) {
             return Regrid(point, regridedPointSize, allowExtrapolation);
         }
         else {
@@ -1031,10 +987,10 @@ function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, label
 
     var levelsCalcualted = getLevels(range, factor);
 
-    //TODO test this here
+
     //regrid the levels if the line counts is less than numOfGridLines only when the zoom=1,
-    // If the plot is zoomed out/in, the line count should be the calculaetd onces
-    var levels = factor!==1? adjustLevels(levelsCalcualted, numOfGridLines):levelsCalcualted;
+    // If the plot is zoomed out/in, the line count should be the calculated once
+    var levels = factor<=4? adjustLevels(levelsCalcualted, numOfGridLines):levelsCalcualted;
 
     const labels = getLabels(levels, csys, labelFormat);
     /* This is where we do all the work. */
@@ -1050,7 +1006,6 @@ function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, label
     for (let i=0; i<2; i++) {
 
         for (let j=0; j<levels[i].length; j++) {
-
             points = findLine(cc, csys,i, levels[i][j], range,screenWidth);
             xLines[offset] = points[0];
             yLines[offset] = points[1];

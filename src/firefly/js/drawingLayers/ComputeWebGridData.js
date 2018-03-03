@@ -24,7 +24,36 @@
  *
  *  For the grid lines calculation, all valid points are in the range, there is no need to check with the screen width.
  *
- *  For Label location, for the latitude, the labels lay on the longitude=0. 
+ *  For Label location, for the latitude, the labels lay on the longitude=0.
+ *
+ *  3/2/18
+ *  It takes a lot longer to draw the grid lines when zoom out.  The reason is that the points search taken longer and
+ *  and the number of points gotten larger and larger.  To solve this issue, I changed the algorithm as described belowL
+ *  1. Use larger delta=10 (deg) to calculate line intervals and points.
+ *  2. Use the view port as a frame to test if the grid lines need to be reduced.  When the image is zoomed out, the ranges
+ *  are getter smaller and smaller, the grid lines will fall beyond the boundary.  Those lines no longer need to be calculated.
+ *  Thus, there will be some time saved.
+ *  However, the view port does not always return the correct border because it depends on the image's projection etc.
+ *     a. Four corner is calculated.  If four corners found, the image is in zoom out status, the four corners are on the
+ *        image.  In this case, the grid lines are filtered.  Only the lines are inside the image will be calculated.
+ *
+ *     b. If the image has discontinuity i.e (0, 360 next each other in longitude), I test in the range 0- min view port
+ *        and max viewport - 360.  The way to test the discontinuity is to see 0 is in the levels array.
+ *
+ *     c. If the image is smaller than the view port, there is no grid line filtering needed.
+ *
+ *
+ *
+ *   3. Since the HIPS map has a larger range,  the levels are always regrided to finer grid lines.
+ *
+ *   4. Filter the grid lines
+ *     a.  For HIPS map, I checked if the longitude=0 is in the image, that is if the pole is inside the viewable area.
+ *     If it is, the algorithm is different from the no pole case.
+ *
+ *     b. In order to get more than one grid lines,  the original levels are regrided to finer levels if only one
+ *     line is found, using the new finer levels to look for the grid lines.  The maximum tries is 5 times.
+ *
+ *
  */
 
 import { makeWorldPt, makeImagePt,makeDevicePt,makeImageWorkSpacePt} from '../visualize/Point.js';
@@ -33,19 +62,17 @@ import CoordinateSys from '../visualize/CoordSys.js';
 import CoordUtil from '../visualize/CoordUtil.js';
 import numeral from 'numeral';
 import { getDrawLayerParameters} from './WebGrid.js';
-
-
+import {isEqual} from 'lodash';
 import {getBestHiPSlevel, getVisibleHiPSCells, getPointMaxSide} from '../visualize/HiPSUtil.js';
+import {Regrid} from '../util/Interp/Regrid.js';
+import {getCenterOfProjection} from '../visualize/PlotViewUtil';
+
 const precision3Digit = '0.000';
 const RANGE_THRESHOLD = 1.02;
 const minUserDistance= 0.25;   // user defined max dist. (deg)
 const maxUserDistance= 3.00;   // user defined min dist. (deg)
 var userDefinedDistance = false;
-import {Regrid} from '../util/Interp/Regrid.js';
-
-const regridedPointSize=50;
-const angleStepForHipsMap=4.0;
-const allowExtrapolation=true;
+const angleStepForHipsMap=10.0;
 /**
  * This method does the calculation for drawing data array
  * @param plot - primePlot object
@@ -65,23 +92,105 @@ export function makeGridDrawData (plot,  cc, useLabels, numOfGridLines=11){
     if (width > 0 && height >0) {
         const bounds = new Rectangle(0, 0, width, height);
 
-
-        var factor =  plot.zoomFactor;
-
-        if (factor < 1.0) factor = 1.0;
-
-
-        var range = plot.type==='hips'?getHipsRange(plot, cc): getRange(csys, width, height, cc);
-        //var range = getHipsRangeByViewDim(plot, csys,  cc);
-
-
-        const {xLines, yLines, labels} = computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, labelFormat);
+        //for hips, the range is always the full sky ranges
+        var range = plot.type==='hips'?[[0, 360], [-90, 90]]: getRange(csys, width, height, cc);
+        const {xLines, yLines, labels} = computeLines(cc, csys, range,screenWidth, numOfGridLines, labelFormat,plot);
         return  drawLines(bounds, labels, xLines, yLines, aitoff, screenWidth, useLabels, cc,plot.type);
 
 
     }
 }
 
+function doSearch(x,y, dx, dy, intervals,  csys, cc){
+    var i=0, wpt;
+
+    while (i <= intervals ) {
+        wpt = cc.getWorldCoords(makeDevicePt(x, y), csys);
+        //find the first point on the image within the view port
+        if (wpt) {
+           return wpt;
+        }
+        x += dx;
+        y += dy;
+
+        i++;
+    }
+    return null;
+}
+function getViewBorder(plot, csys,  cc,ranges) {
+
+    const corners = getFourCorners(plot, csys, cc);
+
+    if( corners.indexOf(null)>-1)  return ranges;
+
+    var vals = [];
+    var vRange = [[1.e20, -1.e20], [1.e20, -1.e20]];
+    for (let i = 0; i < corners.length; i++) {
+        if (corners[i]) {
+            vals[0] = corners[i].getLon();
+            vals[1] = corners[i].getLat();
+            //assign the new lower and upper longitude if found
+            if (vals[0] < vRange[0][0]) vRange[0][0] = vals[0];
+            if (vals[0] > vRange[0][1]) vRange[0][1] = vals[0];
+
+            //assign the new lower and upper latitude if found
+            if (vals[1] < vRange[1][0]) vRange[1][0] = vals[1];
+            if (vals[1] > vRange[1][1]) vRange[1][1] = vals[1];
+        }
+    }
+
+    if (plot.type === 'hips') { //range is too big so we can round it
+        return vRange.map((row, i) => {
+            return row.map((cell, j) => {
+                if (cell < 1.e20 && cell > -1.e20) {
+                    return Math.round(cell);
+                }
+                else {
+                    return ranges[i][j];
+                }
+            });
+        });
+    }
+    else {
+        return vRange;
+    }
+
+}
+function getFourCorners(plot, csys,  cc){
+    const {width, height} = plot.viewDim;
+    var xmin=0;
+    var ymin=0;
+    var xmax= width;
+    var ymax= height;
+    var xdelta, ydelta, x, y;
+
+    var intervals= plot.type==='hips'?100:1;
+    y = ymax;
+    x = xmin;
+    xdelta = width / intervals - 1; //define an interval of the point in line a-b
+    ydelta = 0; //no change in the y direction, so ydelta is 0, thus the points should be alone line a-b
+    const cUpperLeft= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);//upper left
+
+    y = ymin;
+    x = xmax;
+    xdelta = -xdelta;
+    const cLowerRight= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);
+
+    xdelta = 0;
+    ydelta = (height / intervals) - 1;
+    y = ymin;
+    x = xmin;
+    const cLowerLeft= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);
+
+    ydelta = -ydelta;
+    y = ymax;
+    x = xmax;
+    const cUpperRight= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);
+
+
+    return [cUpperLeft, cLowerRight,cLowerLeft, cUpperRight];
+
+}
 /**
  * Tried to use the plotViewDim to calculate the ranges.  But for an unknown reason, the range is always tiny bit smaller than the
  * real range.  Thus, the lines are not connected. 
@@ -93,20 +202,21 @@ export function makeGridDrawData (plot,  cc, useLabels, numOfGridLines=11){
 function  getHipsRangeByViewDim(plot, csys,  cc) {
 
     const {width, height} = plot.viewDim;
+
     var  range = [[1.e20, -1.e20],[1.e20, -1.e20]];
     var xmin=0;
     var ymin=0;
     var xmax= width;
     var ymax= height;
     var xdelta, ydelta, x, y;
-    var intervals= plot.type==='hips'?100:1;
+    var intervals= plot.type==='hips'?360:1;
 
     // four corners.
     // point a[xmin, ymax], the top left point, from here toward to right top point b[xmax, ymax], ie the line
     //   a-b
     y = ymax;
     x = xmin;
-    xdelta = (width / intervals);// - 1; //define an interval of the point in line a-b
+    xdelta = (width / intervals) - 1; //define an interval of the point in line a-b
     ydelta = 0; //no change in the y direction, so ydelta is 0, thus the points should be alone line a-b
     edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
 
@@ -118,7 +228,7 @@ function  getHipsRangeByViewDim(plot, csys,  cc) {
 
     // Left.  Bottom to top.
     xdelta = 0;
-    ydelta = (height / intervals);// - 1;
+    ydelta = (height / intervals) - 1;
     y = ymin;
     x = xmin;
     edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
@@ -130,14 +240,19 @@ function  getHipsRangeByViewDim(plot, csys,  cc) {
     edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
 
     // grid in the middle
-    xdelta = (width / intervals);// - 1;
-    ydelta = (height / intervals);// - 1;
+    xdelta = (width / intervals) - 1;
+    ydelta = (height / intervals) - 1;
     x = xmin;
     y = ymin;
     edgeRun1(intervals, x, y, xdelta, ydelta, range, csys, cc);
 
+    return range.map( (row) => {
+        return row.map( ( cell ) =>{
+            return Math.round(cell);
+        } );
+    } );
 
-    return range;
+
 }
 function edgeRun1(intervals, x, y, dx, dy, range, csys,cc){
 
@@ -288,34 +403,84 @@ function getHipsRange(plot, cc){
     }
 }
 
+function filterLevels(inLevels, plot, csys, cc, ranges){
 
-function adjustLevels(levels,numOfGridLines){
+    var cLevels = inLevels;
 
-    const nL0 = levels[0].length;
 
-    const nL1 = levels[1].length;
-    var newLevels = levels;
-   
-    if (nL0<numOfGridLines) {
-        newLevels[0] = Regrid(levels[0], numOfGridLines, allowExtrapolation);
-    }
+    const viewRanges = getViewBorder(plot, csys,  cc, ranges);
+    var levels=[[],[]];
+    var count=1;
 
-    //adjust ra's range in 0-360, regrid first and then change the range, this way takes are of the discontinuity
-    for (let i = 0; i < newLevels[0].length; i++) {
-        if (newLevels[0][i] > 360) {
-            newLevels[0][i] -= 360;
+    const centerWpt = getCenterOfProjection(plot);
+    const hasPole = viewRanges[0][0]<centerWpt.getLon() && centerWpt.getLon()<viewRanges[0][1]?false:true;
+
+
+    while( count<4 && (levels[0].length<2 || levels[1].length<2) ){
+        levels=[[],[]];
+        for (let i=0; i<cLevels.length; i++) {
+            if (isEqual(viewRanges[i], ranges[i])) {
+                levels[i] = cLevels[i];
+                continue;
+            }
+            for (let j = 0; j < cLevels[i].length; j++) {
+                if (plot.type === 'hips') {
+                    //check if the discontinuity exists
+                    if (i == 0 && hasPole && (cLevels[i][j] >= ranges[i][0] && cLevels[i][j] <= viewRanges[i][0] ||
+                            cLevels[i][j] <= ranges[i][1] && cLevels[i][j] >= viewRanges[i][1] )) {
+                        levels[i].push(cLevels[i][j]);
+                    }
+                    else if ( (i==0  && !hasPole || i==1)  && cLevels[i][j] >= viewRanges[i][0] && cLevels[i][j] <= viewRanges[i][1]) {
+                        levels[i].push(cLevels[i][j]);
+                    }
+                }
+                else if (cLevels[i][j] >= viewRanges[i][0] && cLevels[i][j] <= viewRanges[i][1]) {
+
+                    levels[i].push(cLevels[i][j]);
+                }
+            }
+
         }
-        if (newLevels[0][i] < 0) {
-            newLevels[0][i] += 360;
+        count++;
+        //regrid the cLevels to make it finer grid lines
+        cLevels = cLevels.map( (row, i)=>{
+            return Regrid(row, count*cLevels[i].length, true);
+        });
+
+    }
+
+    //make the grid finer
+   /* cLevels = cLevels.map( (row, i)=>{
+        return Regrid(row, 4*cLevels[i].length, true);
+    });
+
+    for (let i=0; i<cLevels.length; i++) {
+        if (isEqual(viewRanges[i], ranges[i])) {
+            levels[i] = cLevels[i];
+            continue;
+        }
+        for (let j = 0; j < cLevels[i].length; j++) {
+            if (plot.type === 'hips') {
+                //check if the discontinuity exists
+                if (i == 0 && cLevels[i].indexOf(0)>=0 && (cLevels[i][j] >= ranges[i][0] && cLevels[i][j] <= viewRanges[i][0] ||
+                        cLevels[i][j] <= ranges[i][1] && cLevels[i][j] >= viewRanges[i][1] )) {
+                    levels[i].push(cLevels[i][j]);
+                }
+                else if ( (i==0  && cLevels[i].indexOf(0)===-1 || i==1)  && cLevels[i][j] >= viewRanges[i][0] && cLevels[i][j] <= viewRanges[i][1]) {
+                    levels[i].push(cLevels[i][j]);
+                }
+            }
+            else if (cLevels[i][j] >= viewRanges[i][0] && cLevels[i][j] <= viewRanges[i][1]) {
+
+                levels[i].push(cLevels[i][j]);
+            }
         }
 
-    }
+    }*/
 
-    if (nL1<numOfGridLines){
-        newLevels[1] = Regrid( levels[1], numOfGridLines,allowExtrapolation);
-    }
 
-    return newLevels;
+
+   return levels;
 }
 /**
  * Define a rectangle object
@@ -704,15 +869,17 @@ function getLabels(levels,csys, labelFormat) {
  * @param {double} value - x or y value in the image
  * @param {object} range
  * @param {double} screenWidth - a screen width
+ * @param {boolean} isFiltering
  * @return the points found
  */
-function findLine(cc,csys, direction, value, range, screenWidth){
+function findLine(cc,csys, direction, value, range, screenWidth, isFiltering=false){
 
     var intervals;
     var x, dx, y, dy;
 
     const dLength=direction===0?range[1][1]-range[1][0]:range[0][1]-range[0][0];
 
+    //const stepAG =angleStepForHipsMap;// isFiltering? angleStepForHipsMap/2:angleStepForHipsMap;
 
     const nInterval = dLength>angleStepForHipsMap? parseInt(dLength/angleStepForHipsMap):4;
     if (!direction )  {// X
@@ -749,16 +916,8 @@ function findLine(cc,csys, direction, value, range, screenWidth){
         intervals *= 2;
     }
 
-    const points = fixPoints(npoints);
+    return fixPoints(npoints);
 
-    //regrid the points found to at least 30 points
-    return points.map( (point)=>{ if (point.length<regridedPointSize) {
-            return Regrid(point, regridedPointSize, allowExtrapolation);
-        }
-        else {
-         return point;
-        }
-    });
 
 }
 
@@ -767,7 +926,6 @@ function isStraight(points){
     /* This function returns a boolean value depending
      * upon whether the points do not bend too rapidly.
      */
-
     const len = points[0].length;
     if (len < 3) return true;
 
@@ -776,6 +934,7 @@ function isStraight(points){
 
     var dx1 = points[0][1]-points[0][0];
     var dy1 = points[1][1]-points[1][0];
+
     var len1 = (dx1*dx1) + (dy1*dy1);
 
     for (let i=1; i < len-1; i += 1)   {
@@ -785,6 +944,8 @@ function isStraight(points){
         len0 = len1;
         dx1 = points[0][i+1]-points[0][i];
         dy1 = points[1][i+1]-points[1][i];
+
+        if (dx1>=1.e20 || dy1>=1.e20) continue;
         len1 = (dx1*dx1) + (dy1*dy1);
         if (!len0  || !len1 ){
             continue;
@@ -981,16 +1142,19 @@ function drawLines(bounds, labels, xLines,yLines, aitoff,screenWidth, useLabels,
 
 }
 
-
-function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, labelFormat) {
-
-
-    var levelsCalcualted = getLevels(range, factor);
+function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat, plot) {
 
 
-    //regrid the levels if the line counts is less than numOfGridLines only when the zoom=1,
-    // If the plot is zoomed out/in, the line count should be the calculated once
-    var levels = factor<=4? adjustLevels(levelsCalcualted, numOfGridLines):levelsCalcualted;
+    const factor = plot.zoomFactor<1?1:plot.zoomFactor;
+
+    var levelsCalcualted = getLevels(range, factor, numOfGridLines, plot.type);
+
+    var corners = getFourCorners(plot, csys,  cc);
+    //corners = uniq(corners);
+
+    const isFiltering=corners.indexOf(null)===-1? true:false;
+    const levels = isFiltering? filterLevels(levelsCalcualted, plot, csys, cc, range):levelsCalcualted;
+
 
     const labels = getLabels(levels, csys, labelFormat);
     /* This is where we do all the work. */
@@ -1006,7 +1170,7 @@ function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, label
     for (let i=0; i<2; i++) {
 
         for (let j=0; j<levels[i].length; j++) {
-            points = findLine(cc, csys,i, levels[i][j], range,screenWidth);
+            points = findLine(cc, csys,i, levels[i][j], range,screenWidth, isFiltering);
             xLines[offset] = points[0];
             yLines[offset] = points[1];
             offset += 1;
@@ -1019,11 +1183,13 @@ function computeLines(cc, csys, range,screenWidth, factor, numOfGridLines, label
 
 /**
  *
- * @param ranges - two -dimension array of the x and y ranges
- * @param factor - zoom factor
- * @returns  levels {array} number of line intervals
+ * @param ranges
+ * @param factor
+ * @param maxLines
+ * @param plotType
+ * @returns {Array}
  */
-function getLevels(ranges,factor){
+function getLevels(ranges,factor, maxLines, plotType){
 
     var levels=[];
     var  min, max, delta;
@@ -1100,6 +1266,38 @@ function getLevels(ranges,factor){
         }
 
     }
-    return levels;
+
+    return levels.map( (row, i )=>{
+        if (plotType==='hips') {
+
+            if (i == 0 && row.length < 2 * maxLines) {
+                return Regrid(row, 2 * maxLines, true);
+
+            }
+            else if (row.length < 2 * maxLines) {
+                return Regrid(row, 2 * maxLines, true);
+            }
+        }
+        else {
+            if (row.length<maxLines){
+                return Regrid(row,  maxLines, true);
+            }
+            else {
+                return row;
+            }
+        }
+    });
+
+    //adjust ra's range in 0-360, regrid first and then change the range, this way takes care of the discontinuity
+    for (let i = 0; i < levels[0].length; i++) {
+        if (levels[0][i] > 360) {
+            levels[0][i] -= 360;
+        }
+        if (levels[0][i] < 0) {
+            levels[0][i] += 360;
+        }
+
+    }
+   return levels;
 }
 

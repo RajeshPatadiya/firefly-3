@@ -1163,6 +1163,10 @@ function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat
      * and a possibly variable number for levels.
      */
 
+
+    //TODO on Monday use viewRange to calculate the lines to improve performance
+
+    const viewRanges = getViewBorder(plot, csys,  cc, range);
     var xLines = [];
     var yLines = [];
     var offset = 0;
@@ -1170,7 +1174,7 @@ function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat
     for (let i=0; i<2; i++) {
 
         for (let j=0; j<levels[i].length; j++) {
-            points = findLine(cc, csys,i, levels[i][j], range,screenWidth, isFiltering);
+            points = findLine(cc, csys,i, levels[i][j], viewRanges,screenWidth, isFiltering);
             xLines[offset] = points[0];
             yLines[offset] = points[1];
             offset += 1;

@@ -832,7 +832,7 @@ function getLabels(levels,csys, labelFormat) {
     var offset = 0;
     var delta;
 
-    var sexigesimal = (csys.toString()===CoordinateSys.EQ_J2000 || csys.toString()===CoordinateSys.EQ_B1950);
+    var sexigesimal = (csys.toString()===CoordinateSys.EQ_J2000.toString() || csys.toString()===CoordinateSys.EQ_B1950.toString());
     for (let i=0; i < 2; i++){
          if (levels[i].length >=2){
             delta = levels[i][1]-levels[i][0];

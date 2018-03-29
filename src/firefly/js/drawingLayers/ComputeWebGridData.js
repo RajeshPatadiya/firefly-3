@@ -139,7 +139,7 @@ function getViewBorder(plot, csys,  cc,ranges) {
         }
     }
 
-    if (plot.type === 'hips') { //range is too big so we can round it
+   /* if (plot.type === 'hips') { //range is too big so we can round it
         return vRange.map((row, i) => {
             return row.map((cell, j) => {
                 if (cell < 1.e20 && cell > -1.e20) {
@@ -153,8 +153,8 @@ function getViewBorder(plot, csys,  cc,ranges) {
     }
     else {
         return vRange;
-    }
-
+    }*/
+    return vRange;
 }
 function getFourCorners(plot, csys,  cc){
     const {width, height} = plot.viewDim;
@@ -186,6 +186,20 @@ function getFourCorners(plot, csys,  cc){
     y = ymax;
     x = xmax;
     const cUpperRight= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);
+
+    start from here to get the correct range....
+    
+    y = height/2;
+    x = xmin;
+    xdelta = width / intervals - 1; //define an interval of the point in line a-b
+    ydelta = 0;
+    const cMiddleLeft= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);//middle left
+
+    y = height/2;
+    x = xmax;
+    xdelta = width / intervals - 1; //define an interval of the point in line a-b
+    ydelta = 0;
+    const cMiddleRight= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);//middle left
 
 
     return [cUpperLeft, cLowerRight,cLowerLeft, cUpperRight];
@@ -403,12 +417,12 @@ function getHipsRange(plot, cc){
     }
 }
 
-function filterLevels(inLevels, plot, csys, cc, ranges){
+function filterLevels(inLevels, plot,  viewRanges, ranges){
 
     var cLevels = inLevels;
 
+    if (inLevels.length===0) return;
 
-    const viewRanges = getViewBorder(plot, csys,  cc, ranges);
     var levels=[[],[]];
     var count=1;
 
@@ -423,6 +437,7 @@ function filterLevels(inLevels, plot, csys, cc, ranges){
                 levels[i] = cLevels[i];
                 continue;
             }
+            if (!cLevels[i] || cLevels[i].length===0) continue;
             for (let j = 0; j < cLevels[i].length; j++) {
                 if (plot.type === 'hips') {
                     //check if the discontinuity exists
@@ -444,8 +459,12 @@ function filterLevels(inLevels, plot, csys, cc, ranges){
         count++;
         //regrid the cLevels to make it finer grid lines
         cLevels = cLevels.map( (row, i)=>{
-            return Regrid(row, count*cLevels[i].length, true);
+            if(!row || row.length===0) return row;
+            else {
+                return Regrid(row, count*cLevels[i].length, true);
+            }
         });
+
 
     }
 
@@ -869,33 +888,34 @@ function getLabels(levels,csys, labelFormat) {
  * @param {double} value - x or y value in the image
  * @param {object} range
  * @param {double} screenWidth - a screen width
- * @param {boolean} isFiltering
+ * @param {object} plot
  * @return the points found
  */
-function findLine(cc,csys, direction, value, range, screenWidth, isFiltering=false){
+function findLine(cc,csys, direction, value, range, screenWidth, plot){
 
     var intervals;
     var x, dx, y, dy;
 
     const dLength=direction===0?range[1][1]-range[1][0]:range[0][1]-range[0][0];
 
-    //const stepAG =angleStepForHipsMap;// isFiltering? angleStepForHipsMap/2:angleStepForHipsMap;
+
 
     const nInterval = dLength>angleStepForHipsMap? parseInt(dLength/angleStepForHipsMap):4;
-    if (!direction )  {// X
+    if (!direction )  {// longitude lines
         x  = value;
         dx = 0;
         y  = range[1][0];
         dy = (range[1][1]-range[1][0])/nInterval;
     }
-    else { // Y
+    else { // latitude lines
 
-        y = value;
-        dy = 0;
-        x = range[0][0];
-        dx = (range[0][1]-range[0][0]);
-        dx = dx < 0?dx+360:dx;
-        dx /= nInterval;
+            y = value;
+            dy = 0;
+            x = range[0][0];
+            dx = (range[0][1] - range[0][0]);
+            dx = dx < 0 ? dx + 360 : dx;
+            dx /= nInterval;
+
     }
     var opoints = findPoints(cc, csys,nInterval, x, y, dx, dy, null);
     var  straight = isStraight(opoints);
@@ -903,10 +923,12 @@ function findLine(cc,csys, direction, value, range, screenWidth, isFiltering=fal
     var npoints = opoints;
     intervals = 2* nInterval;
     var nstraight;
-    while (intervals < screenWidth) {
+    var count=1;
+    while (intervals < screenWidth  && count<10) { //limit longer loop
         dx /= 2;
         dy /= 2;
         npoints = findPoints(cc, csys, intervals, x, y, dx, dy, opoints);
+        //if (plot.type==='hips') return fixPoints(npoints);
         nstraight = isStraight(npoints);
         if (straight && nstraight) {
             break;
@@ -914,10 +936,15 @@ function findLine(cc,csys, direction, value, range, screenWidth, isFiltering=fal
         straight = nstraight;
         opoints = npoints;
         intervals *= 2;
+        count++;
     }
 
     return fixPoints(npoints);
 
+
+}
+
+function findPointsInRange(){
 
 }
 
@@ -1149,11 +1176,14 @@ function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat
 
     var levelsCalcualted = getLevels(range, factor, numOfGridLines, plot.type);
 
+
     var corners = getFourCorners(plot, csys,  cc);
-    //corners = uniq(corners);
+
+    const viewRanges = getViewBorder(plot, csys,  cc, range);
 
     const isFiltering=corners.indexOf(null)===-1? true:false;
-    const levels = isFiltering? filterLevels(levelsCalcualted, plot, csys, cc, range):levelsCalcualted;
+
+    const levels = isFiltering? filterLevels(levelsCalcualted, plot,viewRanges, range):levelsCalcualted;
 
 
     const labels = getLabels(levels, csys, labelFormat);
@@ -1163,18 +1193,49 @@ function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat
      * and a possibly variable number for levels.
      */
 
+    const centerWpt = getCenterOfProjection(plot);
 
-    //TODO on Monday use viewRange to calculate the lines to improve performance
+    const hasPole = viewRanges[0][0]<centerWpt.getLon() && centerWpt.getLon()<viewRanges[0][1]?false:true;
 
-    const viewRanges = getViewBorder(plot, csys,  cc, range);
+    var ll = getLevelsHips(viewRanges, numOfGridLines, centerWpt, hasPole);
+
+    //TODO the issue is the levels are not correct, try to use the above method to get correct levels, but the four corners are
+    //not always right, try to find the corect four corners
+
     var xLines = [];
     var yLines = [];
     var offset = 0;
     var points=[];
+    var p1=[], p2=[];
     for (let i=0; i<2; i++) {
-
+       if (i===1) console.log('debug');
         for (let j=0; j<levels[i].length; j++) {
-            points = findLine(cc, csys,i, levels[i][j], viewRanges,screenWidth, isFiltering);
+            if (j===1 && hasPole) {
+
+                const range1 = [ [centerWpt.x, viewRanges[0][0] ], [viewRanges[1][0], viewRanges[1][1]]];
+                points = findLine(cc, csys, i, levels[i][j], range1, screenWidth, plot);
+               // const range2 = [ [centerWpt.x , viewRanges[0][1]], [viewRanges[1][0], viewRanges[1][1]]];
+                const d = viewRanges[0][1]-centerWpt.x;
+                if (d>90) {
+
+                    const deltaD = d/4;
+                    let r =  [ [centerWpt.x, d/4 ], [viewRanges[1][0], viewRanges[1][1]]];
+                    p1 = findLine(cc, csys, i, levels[i][j], r, screenWidth, plot);
+
+                    for (var k=1; k<4; k++){
+                        r =  [ [d/4*i, deltaD*(i+1) ], [viewRanges[1][0], viewRanges[1][1]]];
+                        p2= findLine(cc, csys, i, levels[i][j], r, screenWidth, plot);
+                        p1=p1.concat(p2);
+                    }
+                }
+
+                //p2 = findLine(cc, csys, i, levels[i][j], range2, screenWidth, plot);
+                points=points.concat(p2);
+
+            }
+            else {
+                points = findLine(cc, csys, i, levels[i][j], viewRanges, screenWidth, plot);
+            }
             xLines[offset] = points[0];
             yLines[offset] = points[1];
             offset += 1;
@@ -1183,7 +1244,46 @@ function computeLines(cc, csys, range,  screenWidth, numOfGridLines, labelFormat
     }
     return {xLines, yLines, labels};
 }
+function isEven(number){
+    if (number % 2 ===0) return true;
+    return false;
+}
+function getLevelsHips(ranges, nLines, centerWpt, hasPole){
+    const maxLines = isEven(nLines)? nLines+1:nLines;
 
+
+    const rangeLon = ranges[0][1]-ranges[0][0];
+
+    const rangeLat = ranges[1][1]-ranges[1][0];
+
+    const deltaLon = hasPole? (ranges[0][0]-centerWpt.getLon())/maxLines/2:rangeLon/maxLines;
+    const deltaLat = rangeLat/maxLines;
+
+    var lonLevels=[];
+    var latLevels=[];
+
+
+    lonLevels.push(centerWpt.x);
+    for (let i=1; i<maxLines/2; i++) {
+        if (hasPole) {
+
+        lonLevels.push(centerWpt.x + deltaLon * i);
+        lonLevels.push(ranges[0][1] - deltaLon * i);
+        }
+        else {
+            lonLevels.push(centerWpt.x - deltaLon * i);
+            lonLevels.push(ranges[0][1] + deltaLon * i);
+        }
+    }
+    latLevels.push(centerWpt.y);
+    for (let i=1; i<maxLines/2; i++){
+        latLevels.push(centerWpt.x - deltaLat * i);
+        latLevels.push(ranges[1][1] + deltaLon * i);
+    }
+
+    return [lonLevels.sort( (a,b)=>{return a-b; }), latLevels.sort( (a,b)=>{return a-b; }) ];
+
+}
 
 /**
  *

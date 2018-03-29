@@ -114,7 +114,7 @@ export function showHiPSSurverysPopup(hipsUrl,  pv, surveysId = HiPSId, dataType
     const startHiPSPopup = () => {
         const plot = pv ? primePlot(pv) : primePlot(visRoot());
         const popup = (
-            <PopupPanel title={'HiPS Surveys'}>
+            <PopupPanel title={'Change HiPS Image'}>
                 <div style={popupPanelResizableStyle}>
                     <HiPSSurveyListSelection
                         surveysId={surveysId}
@@ -234,7 +234,7 @@ export class HiPSSurveyListSelection extends PureComponent {
                             style={{height: '100%', width: '100%'}}>
                     <CheckboxGroupInputField
                         fieldKey={fKeyHiPSPopular}
-                        options={[{label: 'Popular HiPS', value: HiPSPopular}]}
+                        options={[{label: 'Limit to popular HiPS maps', value: HiPSPopular}]}
                         alignment='horizontal'
                         wrapperStyle={{textAlign: 'center'}}
                     />

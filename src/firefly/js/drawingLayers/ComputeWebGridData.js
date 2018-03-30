@@ -187,7 +187,7 @@ function getFourCorners(plot, csys,  cc){
     x = xmax;
     const cUpperRight= doSearch(x,y, xdelta, ydelta, intervals,  csys, cc);
 
-    start from here to get the correct range....
+    //start from here to get the correct range....
     
     y = height/2;
     x = xmin;
